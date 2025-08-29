@@ -1,0 +1,475 @@
+import React, { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useTheme } from "../../src/contexts/ThemeContext";
+import {
+  projectService,
+  locationService,
+  timeLogService,
+} from "../../src/services";
+import {
+  Card,
+  LoadingScreen,
+  DeleteConfirmationModal,
+} from "../../src/components/ui";
+import { Ionicons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
+import { formatDurationEnglish } from "../../src/utils/duration";
+
+export default function ManageScreen() {
+  const router = useRouter();
+  const { theme } = useTheme();
+  const [activeTab, setActiveTab] = useState("projects");
+  const [projects, setProjects] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [projectStats, setProjectStats] = useState({});
+  const [deleteProjectModalVisible, setDeleteProjectModalVisible] =
+    useState(false);
+  const [deleteLocationModalVisible, setDeleteLocationModalVisible] =
+    useState(false);
+  const [projectToDelete, setProjectToDelete] = useState(null);
+  const [locationToDelete, setLocationToDelete] = useState(null);
+  const [deletingProject, setDeletingProject] = useState(false);
+  const [deletingLocation, setDeletingLocation] = useState(false);
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 20,
+      paddingBottom: 10,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "bold",
+      color: theme.colors.text,
+    },
+    addButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+    },
+    addButtonText: {
+      color: theme.colors.onPrimary,
+      fontWeight: "600",
+      marginLeft: 4,
+    },
+    tabContainer: {
+      flexDirection: "row",
+      paddingHorizontal: 20,
+      marginBottom: 10,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      marginHorizontal: 4,
+      alignItems: "center",
+    },
+    activeTab: {
+      backgroundColor: theme.colors.primary,
+    },
+    inactiveTab: {
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    tabText: {
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    activeTabText: {
+      color: theme.colors.onPrimary,
+    },
+    inactiveTabText: {
+      color: theme.colors.text,
+    },
+    listContainer: {
+      flex: 1,
+      paddingHorizontal: 20,
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingVertical: 60,
+    },
+    emptyIcon: {
+      marginBottom: 16,
+    },
+    emptyTitle: {
+      fontSize: 20,
+      fontWeight: "600",
+      color: theme.colors.text,
+      marginBottom: 8,
+    },
+    emptyDescription: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      marginBottom: 24,
+    },
+    emptyButton: {
+      backgroundColor: theme.colors.primary,
+      paddingHorizontal: 32,
+      paddingVertical: 12,
+      borderRadius: 12,
+    },
+    emptyButtonText: {
+      color: theme.colors.onPrimary,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    statsContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 8,
+    },
+    statsText: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      marginLeft: 4,
+    },
+  });
+
+  const loadData = useCallback(async () => {
+    try {
+      // Load projects
+      const projectsData = await projectService.getAll();
+      setProjects(projectsData);
+
+      // Load stats for each project
+      const stats = {};
+      for (const project of projectsData) {
+        try {
+          const totalDuration = await timeLogService.getTotalDurationByProject(
+            project.id
+          );
+          stats[project.id] = { totalDuration };
+        } catch (error) {
+          console.error(
+            `Error loading stats for project ${project.id}:`,
+            error
+          );
+          stats[project.id] = { totalDuration: 0 };
+        }
+      }
+      setProjectStats(stats);
+
+      // Load locations
+      const locationsData = await locationService.getAll();
+      setLocations(locationsData);
+    } catch (error) {
+      console.error("Error loading data:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to load data",
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadData();
+  }, [loadData]);
+
+  const handleAdd = () => {
+    if (activeTab === "projects") {
+      router.push("/projects/form");
+    } else {
+      router.push("/locations/form");
+    }
+  };
+
+  const handleEditProject = (project) => {
+    router.push(`/projects/form?id=${project.id}`);
+  };
+
+  const handleEditLocation = (location) => {
+    router.push(`/locations/form?id=${location.id}`);
+  };
+
+  const handleDeleteProject = (project) => {
+    setProjectToDelete(project);
+    setDeleteProjectModalVisible(true);
+  };
+
+  const handleConfirmDeleteProject = async () => {
+    if (!projectToDelete) return;
+
+    setDeletingProject(true);
+    try {
+      await projectService.delete(projectToDelete.id);
+      Toast.show({
+        type: "success",
+        text1: "Success",
+        text2: "Project deleted successfully",
+      });
+      loadData();
+      setDeleteProjectModalVisible(false);
+      setProjectToDelete(null);
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to delete project",
+      });
+    } finally {
+      setDeletingProject(false);
+    }
+  };
+
+  const handleCancelDeleteProject = () => {
+    setDeleteProjectModalVisible(false);
+    setProjectToDelete(null);
+  };
+
+  const handleDeleteLocation = (location) => {
+    setLocationToDelete(location);
+    setDeleteLocationModalVisible(true);
+  };
+
+  const handleConfirmDeleteLocation = async () => {
+    if (!locationToDelete) return;
+
+    setDeletingLocation(true);
+    try {
+      await locationService.delete(locationToDelete.id);
+      Toast.show({
+        type: "success",
+        text1: "Success",
+        text2: "Location deleted successfully",
+      });
+      loadData();
+      setDeleteLocationModalVisible(false);
+      setLocationToDelete(null);
+    } catch (error) {
+      console.error("Error deleting location:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to delete location",
+      });
+    } finally {
+      setDeletingLocation(false);
+    }
+  };
+
+  const handleCancelDeleteLocation = () => {
+    setDeleteLocationModalVisible(false);
+    setLocationToDelete(null);
+  };
+
+  const formatDuration = (hours) => {
+    return formatDurationEnglish(hours);
+  };
+
+  const renderProject = ({ item }) => {
+    const stats = projectStats[item.id] || { totalDuration: 0 };
+
+    return (
+      <Card
+        title={item.title}
+        description={item.description}
+        created_by={item.created_by_profile}
+        created_at={item.created_at}
+        updated_by={item.updated_by_profile}
+        updated_at={item.updated_at}
+        onEdit={() => handleEditProject(item)}
+        onDelete={() => handleDeleteProject(item)}
+        rightContent={
+          <View style={styles.statsContainer}>
+            <Ionicons
+              name="time-outline"
+              size={16}
+              color={theme.colors.textSecondary}
+            />
+            <Text style={styles.statsText}>
+              {formatDuration(stats.totalDuration)}
+            </Text>
+          </View>
+        }
+      />
+    );
+  };
+
+  const renderLocation = ({ item }) => (
+    <Card
+      title={item.title}
+      description={item.description}
+      created_by={item.created_by_profile}
+      created_at={item.created_at}
+      updated_by={item.updated_by_profile}
+      updated_at={item.updated_at}
+      onEdit={() => handleEditLocation(item)}
+      onDelete={() => handleDeleteLocation(item)}
+    />
+  );
+
+  const renderEmptyProjects = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons
+        name="folder-outline"
+        size={64}
+        color={theme.colors.textSecondary}
+        style={styles.emptyIcon}
+      />
+      <Text style={styles.emptyTitle}>No Projects Yet</Text>
+      <Text style={styles.emptyDescription}>
+        Create your first project to organize your time tracking
+      </Text>
+      <TouchableOpacity style={styles.emptyButton} onPress={handleAdd}>
+        <Text style={styles.emptyButtonText}>Add Project</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderEmptyLocations = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons
+        name="location-outline"
+        size={64}
+        color={theme.colors.textSecondary}
+        style={styles.emptyIcon}
+      />
+      <Text style={styles.emptyTitle}>No Locations Yet</Text>
+      <Text style={styles.emptyDescription}>
+        Create your first location to get started with time tracking
+      </Text>
+      <TouchableOpacity style={styles.emptyButton} onPress={handleAdd}>
+        <Text style={styles.emptyButtonText}>Add Location</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <LoadingScreen title="Loading data..." icon="grid-outline" size="small" />
+    );
+  }
+
+  const currentData = activeTab === "projects" ? projects : locations;
+  const renderItem = activeTab === "projects" ? renderProject : renderLocation;
+  const renderEmpty =
+    activeTab === "projects" ? renderEmptyProjects : renderEmptyLocations;
+
+  return (
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Manage</Text>
+        <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+          <Ionicons name="add" size={20} color={theme.colors.onPrimary} />
+          <Text style={styles.addButtonText}>Add</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === "projects" ? styles.activeTab : styles.inactiveTab,
+          ]}
+          onPress={() => setActiveTab("projects")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "projects"
+                ? styles.activeTabText
+                : styles.inactiveTabText,
+            ]}
+          >
+            Projects
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === "locations" ? styles.activeTab : styles.inactiveTab,
+          ]}
+          onPress={() => setActiveTab("locations")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "locations"
+                ? styles.activeTabText
+                : styles.inactiveTabText,
+            ]}
+          >
+            Locations
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.listContainer}>
+        <FlatList
+          data={currentData}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          ListEmptyComponent={renderEmpty}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+
+      <DeleteConfirmationModal
+        visible={deleteProjectModalVisible}
+        onClose={handleCancelDeleteProject}
+        onConfirm={handleConfirmDeleteProject}
+        title="Delete Project"
+        message="Are you sure you want to delete this project? This will also delete all associated time logs."
+        itemTitle={projectToDelete?.title}
+        itemType="project"
+        loading={deletingProject}
+      />
+
+      <DeleteConfirmationModal
+        visible={deleteLocationModalVisible}
+        onClose={handleCancelDeleteLocation}
+        onConfirm={handleConfirmDeleteLocation}
+        title="Delete Location"
+        message="Are you sure you want to delete this location?"
+        itemTitle={locationToDelete?.title}
+        itemType="location"
+        loading={deletingLocation}
+      />
+    </SafeAreaView>
+  );
+}
