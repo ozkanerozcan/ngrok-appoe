@@ -12,6 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "ios": {
       "supportsTablet": true
     },
@@ -21,21 +24,6 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true
-    },
-    "web": {
-      "favicon": "./assets/favicon.png",
-      "bundler": "metro",
-      "output": "static",
-      "name": "AppOE",
-      "shortName": "AppOE",
-      "lang": "en",
-      "scope": "/",
-      "themeColor": "#000000",
-      "backgroundColor": "#ffffff",
-      "display": "standalone",
-      "orientation": "portrait",
-      "startUrl": "/",
-      "preferRelatedApplications": false
     },
     "plugins": [
       "expo-router",

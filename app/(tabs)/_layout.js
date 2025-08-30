@@ -1,10 +1,12 @@
 import { Tabs } from "expo-router";
 import { useTheme } from "../../src/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ProtectedRoute from "../../src/components/ProtectedRoute";
 
 export default function TabLayout() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <ProtectedRoute>
@@ -15,6 +17,8 @@ export default function TabLayout() {
           tabBarStyle: {
             backgroundColor: theme.colors.surface,
             borderTopColor: theme.colors.border,
+            paddingBottom: Math.max(16, insets.bottom * 0.5), // Balanced for both Expo Go and PWA
+            height: 60 + Math.max(16, insets.bottom * 0.5),
           },
           headerStyle: {
             backgroundColor: theme.colors.surface,
