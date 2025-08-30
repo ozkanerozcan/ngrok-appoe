@@ -49,6 +49,8 @@ export default function TimeLogFormScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [projectModalVisible, setProjectModalVisible] = useState(false);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [projectSearch, setProjectSearch] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
   const scrollViewRef = useRef(null);
   const titleInputRef = useRef(null);
   const durationInputRef = useRef(null);
@@ -194,6 +196,24 @@ export default function TimeLogFormScreen() {
     return locations.find((l) => l.id === formData.location);
   };
 
+  const getFilteredProjects = () => {
+    if (!projectSearch.trim()) {
+      return projects;
+    }
+    return projects.filter((project) =>
+      project.title.toLowerCase().includes(projectSearch.toLowerCase())
+    );
+  };
+
+  const getFilteredLocations = () => {
+    if (!locationSearch.trim()) {
+      return locations;
+    }
+    return locations.filter((location) =>
+      location.title.toLowerCase().includes(locationSearch.toLowerCase())
+    );
+  };
+
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -337,6 +357,30 @@ export default function TimeLogFormScreen() {
     emptyText: {
       fontSize: 16,
       color: theme.colors.textSecondary,
+    },
+    searchInput: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
+      padding: 12,
+      fontSize: 16,
+      color: theme.colors.text,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginBottom: 16,
+    },
+    searchContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginBottom: 16,
+    },
+    searchIcon: {
+      marginRight: 8,
     },
   });
   if (loading) {
@@ -518,7 +562,10 @@ export default function TimeLogFormScreen() {
           visible={projectModalVisible}
           transparent
           animationType="fade"
-          onRequestClose={() => setProjectModalVisible(false)}
+          onRequestClose={() => {
+            setProjectModalVisible(false);
+            setProjectSearch("");
+          }}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
@@ -526,7 +573,10 @@ export default function TimeLogFormScreen() {
                 <Text style={styles.modalTitle}>Select Project</Text>
                 <TouchableOpacity
                   style={styles.closeButton}
-                  onPress={() => setProjectModalVisible(false)}
+                  onPress={() => {
+                    setProjectModalVisible(false);
+                    setProjectSearch("");
+                  }}
                 >
                   <Ionicons
                     name="close"
@@ -536,10 +586,20 @@ export default function TimeLogFormScreen() {
                 </TouchableOpacity>
               </View>
 
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search projects..."
+                placeholderTextColor={theme.colors.textSecondary}
+                value={projectSearch}
+                onChangeText={setProjectSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
               <View style={styles.listContainer}>
-                {projects.length > 0 ? (
+                {getFilteredProjects().length > 0 ? (
                   <FlatList
-                    data={projects}
+                    data={getFilteredProjects()}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
                       const isSelected = item.id === formData.project;
@@ -552,6 +612,7 @@ export default function TimeLogFormScreen() {
                           onPress={() => {
                             setFormData({ ...formData, project: item.id });
                             setProjectModalVisible(false);
+                            setProjectSearch("");
                           }}
                         >
                           <Text
@@ -569,7 +630,11 @@ export default function TimeLogFormScreen() {
                   />
                 ) : (
                   <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No projects available</Text>
+                    <Text style={styles.emptyText}>
+                      {projectSearch.trim()
+                        ? "No projects found matching your search"
+                        : "No projects available"}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -582,7 +647,10 @@ export default function TimeLogFormScreen() {
           visible={locationModalVisible}
           transparent
           animationType="fade"
-          onRequestClose={() => setLocationModalVisible(false)}
+          onRequestClose={() => {
+            setLocationModalVisible(false);
+            setLocationSearch("");
+          }}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
@@ -590,7 +658,10 @@ export default function TimeLogFormScreen() {
                 <Text style={styles.modalTitle}>Select Location</Text>
                 <TouchableOpacity
                   style={styles.closeButton}
-                  onPress={() => setLocationModalVisible(false)}
+                  onPress={() => {
+                    setLocationModalVisible(false);
+                    setLocationSearch("");
+                  }}
                 >
                   <Ionicons
                     name="close"
@@ -600,10 +671,20 @@ export default function TimeLogFormScreen() {
                 </TouchableOpacity>
               </View>
 
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search locations..."
+                placeholderTextColor={theme.colors.textSecondary}
+                value={locationSearch}
+                onChangeText={setLocationSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
               <View style={styles.listContainer}>
-                {locations.length > 0 ? (
+                {getFilteredLocations().length > 0 ? (
                   <FlatList
-                    data={locations}
+                    data={getFilteredLocations()}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
                       const isSelected = item.id === formData.location;
@@ -616,6 +697,7 @@ export default function TimeLogFormScreen() {
                           onPress={() => {
                             setFormData({ ...formData, location: item.id });
                             setLocationModalVisible(false);
+                            setLocationSearch("");
                           }}
                         >
                           <Text
@@ -633,7 +715,11 @@ export default function TimeLogFormScreen() {
                   />
                 ) : (
                   <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No locations available</Text>
+                    <Text style={styles.emptyText}>
+                      {locationSearch.trim()
+                        ? "No locations found matching your search"
+                        : "No locations available"}
+                    </Text>
                   </View>
                 )}
               </View>
