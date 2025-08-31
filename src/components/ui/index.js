@@ -5,5 +5,6 @@ export { default as Modal } from "./Modal";
 export { default as DeleteConfirmationModal } from "./DeleteConfirmationModal";
 export { default as Card } from "./Card";
 export { default as Picker } from "./Picker";
+export { default as MultiSelectPicker } from "./MultiSelectPicker";
 export { default as TimeInput } from "./TimeInput";
 export { default as DurationInput } from "./DurationInput";

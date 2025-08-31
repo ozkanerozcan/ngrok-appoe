@@ -6,15 +6,22 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  TextInput,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/contexts/ThemeContext";
-import { timeLogService } from "../../src/services";
+import {
+  timeLogService,
+  projectService,
+  locationService,
+} from "../../src/services";
 import {
   Card,
   LoadingScreen,
   DeleteConfirmationModal,
+  MultiSelectPicker,
 } from "../../src/components/ui";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -29,6 +36,17 @@ export default function TimeLogsScreen() {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Filter states
+  const [projects, setProjects] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [selectedProjects, setSelectedProjects] = useState([]);
+  const [selectedLocations, setSelectedLocations] = useState([]);
+  const [selectedUpdatedBy, setSelectedUpdatedBy] = useState([]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [filtersVisible, setFiltersVisible] = useState(false);
 
   const styles = StyleSheet.create({
     container: {
@@ -125,18 +143,121 @@ export default function TimeLogsScreen() {
       fontWeight: "600",
       color: theme.colors.primary,
     },
+    filterSection: {
+      backgroundColor: theme.colors.surface,
+      marginHorizontal: 20,
+      marginBottom: 10,
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    filterHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: filtersVisible ? 12 : 0,
+      paddingVertical: 8,
+    },
+    filterTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.text,
+    },
+    filterToggle: {
+      padding: 4,
+    },
+    filterContent: {
+      // Will be handled conditionally in render
+    },
+    searchInput: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 8,
+      padding: 12,
+      paddingRight: 44,
+      fontSize: 16,
+      color: theme.colors.text,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      minHeight: 50,
+    },
+    dateInput: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 8,
+      padding: 12,
+      paddingRight: 44,
+      fontSize: 16,
+      color: theme.colors.text,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      minHeight: 50,
+    },
+    clearFiltersButton: {
+      backgroundColor: theme.colors.error,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      alignSelf: "flex-end",
+      marginTop: 8,
+    },
+    clearFiltersText: {
+      color: theme.colors.onError,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    hintText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      marginTop: 4,
+      marginBottom: 8,
+    },
+    inputContainer: {
+      position: "relative",
+      marginBottom: 12,
+    },
+    clearButton: {
+      position: "absolute",
+      right: 12,
+      top: 0,
+      bottom: 0,
+      justifyContent: "center",
+      alignItems: "center",
+      width: 32,
+      height: "100%",
+      zIndex: 100,
+      backgroundColor: "transparent",
+    },
+    pickerContainer: {
+      position: "relative",
+      marginBottom: 12,
+    },
+    pickerClearButton: {
+      position: "absolute",
+      right: 36,
+      top: "50%",
+      marginTop: -12,
+      padding: 8,
+      zIndex: 100,
+      backgroundColor: "transparent",
+    },
   });
 
-  const loadTimeLogs = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const data = await timeLogService.getAll();
-      setTimeLogs(data);
+      const [timeLogsData, projectsData, locationsData] = await Promise.all([
+        timeLogService.getAll(),
+        projectService.getAll(),
+        locationService.getAll(),
+      ]);
+      setTimeLogs(timeLogsData);
+      setProjects(projectsData);
+      setLocations(locationsData);
     } catch (error) {
-      console.error("Error loading time logs:", error);
+      console.error("Error loading data:", error);
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Failed to load time logs",
+        text2: "Failed to load data",
       });
     } finally {
       setLoading(false);
@@ -146,14 +267,14 @@ export default function TimeLogsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadTimeLogs();
-    }, [loadTimeLogs])
+      loadData();
+    }, [loadData])
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadTimeLogs();
-  }, [loadTimeLogs]);
+    loadData();
+  }, [loadData]);
 
   const handleAdd = () => {
     router.push("/timelogs/form");
@@ -179,7 +300,7 @@ export default function TimeLogsScreen() {
         text1: "Success",
         text2: "Time log deleted successfully",
       });
-      loadTimeLogs();
+      loadData();
       setDeleteModalVisible(false);
       setItemToDelete(null);
     } catch (error) {
@@ -235,23 +356,39 @@ export default function TimeLogsScreen() {
     />
   );
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons
-        name="time-outline"
-        size={64}
-        color={theme.colors.textSecondary}
-        style={styles.emptyIcon}
-      />
-      <Text style={styles.emptyTitle}>No Time Logs Yet</Text>
-      <Text style={styles.emptyDescription}>
-        Start tracking your time by creating your first time log
-      </Text>
-      <TouchableOpacity style={styles.emptyButton} onPress={handleAdd}>
-        <Text style={styles.emptyButtonText}>Add Time Log</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderEmpty = () => {
+    const hasFilters =
+      selectedProjects.length > 0 ||
+      selectedLocations.length > 0 ||
+      selectedUpdatedBy.length > 0 ||
+      dateFrom ||
+      dateTo ||
+      searchText.trim();
+
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons
+          name="time-outline"
+          size={64}
+          color={theme.colors.textSecondary}
+          style={styles.emptyIcon}
+        />
+        <Text style={styles.emptyTitle}>
+          {hasFilters ? "No Time Logs Match Filters" : "No Time Logs Yet"}
+        </Text>
+        <Text style={styles.emptyDescription}>
+          {hasFilters
+            ? "Try adjusting your filters to see more results"
+            : "Start tracking your time by creating your first time log"}
+        </Text>
+        {!hasFilters && (
+          <TouchableOpacity style={styles.emptyButton} onPress={handleAdd}>
+            <Text style={styles.emptyButtonText}>Add Time Log</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   if (loading) {
     return (
@@ -263,6 +400,63 @@ export default function TimeLogsScreen() {
     );
   }
 
+  const clearFilters = () => {
+    setSelectedProjects([]);
+    setSelectedLocations([]);
+    setSelectedUpdatedBy([]);
+    setDateFrom("");
+    setDateTo("");
+    setSearchText("");
+  };
+
+  const filteredTimeLogs = timeLogs.filter((log) => {
+    // Search text filter
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase();
+      const matchesTitle = log.title?.toLowerCase().includes(searchLower);
+      const matchesDescription = log.description
+        ?.toLowerCase()
+        .includes(searchLower);
+      if (!matchesTitle && !matchesDescription) return false;
+    }
+
+    // Project filter
+    if (
+      selectedProjects.length > 0 &&
+      !selectedProjects.includes(log.project)
+    ) {
+      return false;
+    }
+
+    // Location filter
+    if (
+      selectedLocations.length > 0 &&
+      !selectedLocations.includes(log.location)
+    ) {
+      return false;
+    }
+
+    // Updated by filter
+    if (
+      selectedUpdatedBy.length > 0 &&
+      !selectedUpdatedBy.includes(log.updated_by)
+    ) {
+      return false;
+    }
+
+    // Date from filter
+    if (dateFrom && new Date(log.updated_at) < new Date(dateFrom)) {
+      return false;
+    }
+
+    // Date to filter
+    if (dateTo && new Date(log.updated_at) > new Date(dateTo + "T23:59:59")) {
+      return false;
+    }
+
+    return true;
+  });
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <View style={styles.header}>
@@ -273,9 +467,126 @@ export default function TimeLogsScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.filterSection}>
+        <TouchableOpacity
+          style={styles.filterHeader}
+          onPress={() => setFiltersVisible(!filtersVisible)}
+        >
+          <Text style={styles.filterTitle}>Filters</Text>
+          <Ionicons
+            name={filtersVisible ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={theme.colors.textSecondary}
+          />
+        </TouchableOpacity>
+
+        {filtersVisible && (
+          <View>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search title or description..."
+                placeholderTextColor={theme.colors.textSecondary}
+                value={searchText}
+                onChangeText={setSearchText}
+              />
+              {searchText && searchText.trim().length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={() => setSearchText("")}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.dateInput}
+                  placeholder="From (YYYY-MM-DD)"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={dateFrom}
+                  onChangeText={setDateFrom}
+                />
+                {dateFrom && dateFrom.trim().length > 0 && (
+                  <TouchableOpacity
+                    style={[
+                      styles.clearButton,
+                      { justifyContent: "center", alignItems: "center" },
+                    ]}
+                    onPress={() => setDateFrom("")}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.dateInput}
+                  placeholder="To (YYYY-MM-DD)"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={dateTo}
+                  onChangeText={setDateTo}
+                />
+                {dateTo && dateTo.trim().length > 0 && (
+                  <TouchableOpacity
+                    style={[
+                      styles.clearButton,
+                      { justifyContent: "center", alignItems: "center" },
+                    ]}
+                    onPress={() => setDateTo("")}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            <MultiSelectPicker
+              value={selectedProjects}
+              onValueChange={setSelectedProjects}
+              items={projects}
+              placeholder="Select projects"
+              searchable
+            />
+
+            <MultiSelectPicker
+              value={selectedLocations}
+              onValueChange={setSelectedLocations}
+              items={locations}
+              placeholder="Select locations"
+              searchable
+            />
+
+            <TouchableOpacity
+              style={styles.clearFiltersButton}
+              onPress={clearFilters}
+            >
+              <Text style={styles.clearFiltersText}>Clear Filters</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
       <View style={styles.listContainer}>
         <FlatList
-          data={timeLogs}
+          data={filteredTimeLogs}
           renderItem={renderTimeLog}
           keyExtractor={(item) => item.id}
           ListEmptyComponent={renderEmpty}
