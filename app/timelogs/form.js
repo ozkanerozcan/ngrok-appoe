@@ -49,6 +49,7 @@ export default function TimeLogFormScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [projectModalVisible, setProjectModalVisible] = useState(false);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [archiveModalVisible, setArchiveModalVisible] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [locationSearch, setLocationSearch] = useState("");
   const scrollViewRef = useRef(null);
@@ -160,21 +161,36 @@ export default function TimeLogFormScreen() {
 
     console.log("Submitting with duration:", duration);
 
+    const submitData = {
+      title: formData.title.trim(),
+      description: formData.description || "",
+      project: formData.project,
+      location: formData.location,
+      duration: duration,
+    };
+
+    console.log("Submit data:", submitData);
+
+    if (isEditing) {
+      // Show archive confirmation modal for editing
+      setArchiveModalVisible(true);
+    } else {
+      // Create new time log directly
+      await performSave(submitData, false);
+    }
+  };
+
+  const performSave = async (submitData, shouldArchive = false) => {
     setSubmitting(true);
     try {
-      const submitData = {
-        title: formData.title.trim(),
-        description: formData.description || "",
-        project: formData.project,
-        location: formData.location,
-        duration: duration,
-      };
-
-      console.log("Submit data:", submitData);
-
       if (isEditing) {
-        await timeLogService.update(id, submitData);
-        showToast("success", "Time log updated successfully");
+        await timeLogService.update(id, submitData, shouldArchive);
+        showToast(
+          "success",
+          shouldArchive
+            ? "Time log archived and updated successfully"
+            : "Time log updated successfully"
+        );
       } else {
         await timeLogService.create(submitData);
         showToast("success", "Time log created successfully");
@@ -182,10 +198,51 @@ export default function TimeLogFormScreen() {
       router.back();
     } catch (error) {
       console.error("Error saving time log:", error);
-      showToast("error", error.message || "Failed to save time log");
+
+      // Handle specific archive table errors
+      if (shouldArchive && error.message?.includes("time_logs_archive")) {
+        showToast(
+          "error",
+          "Archive table not found. Please create the time_logs_archive table in Supabase first."
+        );
+      } else if (
+        error.message?.includes("relation") &&
+        error.message?.includes("does not exist")
+      ) {
+        showToast(
+          "error",
+          "Database table not found. Please check your Supabase setup."
+        );
+      } else {
+        showToast("error", error.message || "Failed to save time log");
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleArchiveConfirm = async () => {
+    setArchiveModalVisible(false);
+    const submitData = {
+      title: formData.title.trim(),
+      description: formData.description || "",
+      project: formData.project,
+      location: formData.location,
+      duration: parseFloat(formData.duration),
+    };
+    await performSave(submitData, true);
+  };
+
+  const handleArchiveCancel = async () => {
+    setArchiveModalVisible(false);
+    const submitData = {
+      title: formData.title.trim(),
+      description: formData.description || "",
+      project: formData.project,
+      location: formData.location,
+      duration: parseFloat(formData.duration),
+    };
+    await performSave(submitData, false);
   };
 
   const getSelectedProject = () => {
@@ -381,6 +438,48 @@ export default function TimeLogFormScreen() {
     },
     searchIcon: {
       marginRight: 8,
+    },
+    iconContainer: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: theme.colors.primary + "20",
+      alignItems: "center",
+      justifyContent: "center",
+      alignSelf: "center",
+      marginBottom: 16,
+    },
+    message: {
+      fontSize: 16,
+      color: theme.colors.text,
+      textAlign: "center",
+      marginBottom: 8,
+      lineHeight: 24,
+    },
+    buttonsContainer: {
+      flexDirection: "row",
+      width: "100%",
+      gap: 12,
+    },
+    cancelButton: {
+      flex: 1,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: "center",
+    },
+    confirmButton: {
+      flex: 1,
+      backgroundColor: theme.colors.primary,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: "center",
+    },
+    buttonText: {
+      fontSize: 16,
+      fontWeight: "600",
     },
   });
   if (loading) {
@@ -722,6 +821,73 @@ export default function TimeLogFormScreen() {
                     </Text>
                   </View>
                 )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Archive Confirmation Modal */}
+        <Modal
+          visible={archiveModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setArchiveModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, { maxWidth: 400 }]}>
+              <View style={styles.iconContainer}>
+                <Ionicons
+                  name="archive-outline"
+                  size={32}
+                  color={theme.colors.primary}
+                />
+              </View>
+
+              <Text style={styles.message}>
+                Archive the previous record before updating?
+              </Text>
+
+              <Text
+                style={[
+                  styles.message,
+                  {
+                    fontSize: 14,
+                    color: theme.colors.textSecondary,
+                    marginBottom: 24,
+                  },
+                ]}
+              >
+                This will save a copy of the current data to the archive for
+                future reference.
+              </Text>
+
+              <View style={styles.buttonsContainer}>
+                <TouchableOpacity
+                  style={[styles.cancelButton, { flex: 1, marginRight: 6 }]}
+                  onPress={handleArchiveCancel}
+                  disabled={submitting}
+                >
+                  <Text
+                    style={[styles.buttonText, { color: theme.colors.text }]}
+                  >
+                    No
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.confirmButton, { flex: 1, marginLeft: 6 }]}
+                  onPress={handleArchiveConfirm}
+                  disabled={submitting}
+                >
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      { color: theme.colors.onPrimary },
+                    ]}
+                  >
+                    {submitting ? "Archiving..." : "Yes"}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>

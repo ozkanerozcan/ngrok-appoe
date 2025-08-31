@@ -16,6 +16,7 @@ export default function Card({
   children,
   style,
   // New metadata props
+  id,
   created_by,
   created_at,
   updated_by,
@@ -180,6 +181,7 @@ export default function Card({
                 router.push({
                   pathname: "/details",
                   params: {
+                    id,
                     title,
                     subtitle,
                     description,
