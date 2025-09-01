@@ -33,8 +33,10 @@ export default function TimeLogFormScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const { id, isArchiveEdit, originalTimeLogId } = params;
   const isEditing = !!id;
+  const isEditingArchive = !!isArchiveEdit;
 
   const [formData, setFormData] = useState({
     title: "",
@@ -103,17 +105,32 @@ export default function TimeLogFormScreen() {
   const loadTimeLog = async () => {
     setLoading(true);
     try {
-      const timeLog = await timeLogService.getById(id);
+      let data;
+      if (isEditingArchive) {
+        // Load archive data for editing
+        const archives = await timeLogService.getArchivedLogs(
+          originalTimeLogId
+        );
+        const archiveToEdit = archives.find((archive) => archive.id === id);
+        if (!archiveToEdit) {
+          throw new Error("Archive not found");
+        }
+        data = archiveToEdit;
+      } else {
+        // Load regular time log data
+        data = await timeLogService.getById(id);
+      }
+
       setFormData({
-        title: timeLog.title || "",
-        description: timeLog.description || "",
-        project: timeLog.project || "",
-        location: timeLog.location || "",
-        duration: timeLog.duration || "",
+        title: data.title || "",
+        description: data.description || "",
+        project: data.project || "",
+        location: data.location || "",
+        duration: data.duration || "",
       });
     } catch (error) {
-      console.error("Error loading time log:", error);
-      showToast("error", "Failed to load time log");
+      console.error("Error loading data:", error);
+      showToast("error", "Failed to load data");
       router.back();
     } finally {
       setLoading(false);
@@ -172,32 +189,48 @@ export default function TimeLogFormScreen() {
     console.log("Submit data:", submitData);
 
     if (isEditing) {
-      // Show archive confirmation modal for editing
-      setArchiveModalVisible(true);
+      if (isEditingArchive) {
+        // Edit archive directly without confirmation
+        await performSave(submitData, false, true);
+      } else {
+        // Show archive confirmation modal for editing regular time log
+        setArchiveModalVisible(true);
+      }
     } else {
       // Create new time log directly
       await performSave(submitData, false);
     }
   };
 
-  const performSave = async (submitData, shouldArchive = false) => {
+  const performSave = async (
+    submitData,
+    shouldArchive = false,
+    isArchiveEdit = false
+  ) => {
     setSubmitting(true);
     try {
       if (isEditing) {
-        await timeLogService.update(id, submitData, shouldArchive);
-        showToast(
-          "success",
-          shouldArchive
-            ? "Time log archived and updated successfully"
-            : "Time log updated successfully"
-        );
+        if (isArchiveEdit) {
+          // Update archive record
+          await timeLogService.updateArchive(id, submitData);
+          showToast("success", "Archive updated successfully");
+        } else {
+          // Update regular time log
+          await timeLogService.update(id, submitData, shouldArchive);
+          showToast(
+            "success",
+            shouldArchive
+              ? "Time log archived and updated successfully"
+              : "Time log updated successfully"
+          );
+        }
       } else {
         await timeLogService.create(submitData);
         showToast("success", "Time log created successfully");
       }
       router.back();
     } catch (error) {
-      console.error("Error saving time log:", error);
+      console.error("Error saving data:", error);
 
       // Handle specific archive table errors
       if (shouldArchive && error.message?.includes("time_logs_archive")) {
@@ -214,7 +247,7 @@ export default function TimeLogFormScreen() {
           "Database table not found. Please check your Supabase setup."
         );
       } else {
-        showToast("error", error.message || "Failed to save time log");
+        showToast("error", error.message || "Failed to save data");
       }
     } finally {
       setSubmitting(false);
@@ -328,9 +361,23 @@ export default function TimeLogFormScreen() {
       borderColor: theme.colors.border,
       minHeight: 50,
     },
-    textArea: {
-      minHeight: 120,
+    truncatedInput: {
+      ...(Platform.OS === "web" && {
+        textOverflow: "ellipsis",
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        maxWidth: "100%",
+      }),
+    },
+    descriptionInput: {
+      minHeight: Platform.OS === "web" ? 80 : 70,
+      maxHeight: Platform.OS === "web" ? 120 : undefined,
       textAlignVertical: "top",
+      ...(Platform.OS === "web" && {
+        wordWrap: "break-word",
+        overflowWrap: "break-word",
+        whiteSpace: "pre-wrap",
+      }),
     },
     picker: {
       backgroundColor: theme.colors.surface,
@@ -348,6 +395,11 @@ export default function TimeLogFormScreen() {
       fontSize: 16,
       color: theme.colors.text,
       flex: 1,
+      ...(Platform.OS === "web" && {
+        textOverflow: "ellipsis",
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+      }),
     },
     pickerPlaceholder: {
       color: theme.colors.textSecondary,
@@ -424,6 +476,12 @@ export default function TimeLogFormScreen() {
       borderWidth: 1,
       borderColor: theme.colors.border,
       marginBottom: 16,
+      ...(Platform.OS === "web" && {
+        textOverflow: "ellipsis",
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        maxWidth: "100%",
+      }),
     },
     searchContainer: {
       flexDirection: "row",
@@ -495,7 +553,11 @@ export default function TimeLogFormScreen() {
             </TouchableOpacity>
 
             <Text style={styles.headerTitle}>
-              {isEditing ? "Edit Time Log" : "Add Time Log"}
+              {isEditing
+                ? isEditingArchive
+                  ? "Edit Archive"
+                  : "Edit Time Log"
+                : "Add Time Log"}
             </Text>
 
             <View style={styles.headerButton} />
@@ -560,7 +622,7 @@ export default function TimeLogFormScreen() {
               </Text>
               <TextInput
                 ref={titleInputRef}
-                style={styles.input}
+                style={[styles.input, styles.truncatedInput]}
                 placeholder="Enter time log title..."
                 placeholderTextColor={theme.colors.textSecondary}
                 value={formData.title}
@@ -569,6 +631,9 @@ export default function TimeLogFormScreen() {
                 }
                 returnKeyType="next"
                 blurOnSubmit={false}
+                ellipsizeMode="tail"
+                numberOfLines={1}
+                maxLength={100}
                 onFocus={() => scrollToInput(titleInputRef)}
               />
             </View>
@@ -586,6 +651,8 @@ export default function TimeLogFormScreen() {
                     styles.pickerText,
                     !selectedProject && styles.pickerPlaceholder,
                   ]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                 >
                   {selectedProject ? selectedProject.title : "Select a project"}
                 </Text>
@@ -610,6 +677,8 @@ export default function TimeLogFormScreen() {
                     styles.pickerText,
                     !selectedLocation && styles.pickerPlaceholder,
                   ]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                 >
                   {selectedLocation
                     ? selectedLocation.title
@@ -639,7 +708,7 @@ export default function TimeLogFormScreen() {
               <Text style={styles.label}>Description</Text>
               <TextInput
                 ref={descriptionInputRef}
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.descriptionInput]}
                 placeholder="Enter time log description..."
                 placeholderTextColor={theme.colors.textSecondary}
                 value={formData.description}
@@ -647,7 +716,7 @@ export default function TimeLogFormScreen() {
                   setFormData({ ...formData, description: text })
                 }
                 multiline
-                numberOfLines={4}
+                numberOfLines={Platform.OS === "web" ? undefined : 3}
                 returnKeyType="done"
                 textAlignVertical="top"
                 onFocus={() => scrollToInput(descriptionInputRef)}
@@ -693,6 +762,7 @@ export default function TimeLogFormScreen() {
                 onChangeText={setProjectSearch}
                 autoCapitalize="none"
                 autoCorrect={false}
+                ellipsizeMode="tail"
               />
 
               <View style={styles.listContainer}>
@@ -778,6 +848,7 @@ export default function TimeLogFormScreen() {
                 onChangeText={setLocationSearch}
                 autoCapitalize="none"
                 autoCorrect={false}
+                ellipsizeMode="tail"
               />
 
               <View style={styles.listContainer}>

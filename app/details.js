@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
+  Modal,
+  Platform,
 } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useTheme } from "../src/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import ProtectedRoute from "../src/components/ProtectedRoute";
@@ -25,6 +27,10 @@ export default function DetailsScreen() {
 
   const [archivedLogs, setArchivedLogs] = useState([]);
   const [loadingArchives, setLoadingArchives] = useState(false);
+  const [deleteArchiveModalVisible, setDeleteArchiveModalVisible] =
+    useState(false);
+  const [archiveToDelete, setArchiveToDelete] = useState(null);
+  const [deletingArchive, setDeletingArchive] = useState(false);
 
   const {
     id,
@@ -46,12 +52,21 @@ export default function DetailsScreen() {
   const project = projectParam ? JSON.parse(projectParam) : null;
   const location = locationParam ? JSON.parse(locationParam) : null;
 
-  // Fetch archived logs when component mounts
+  // Fetch archived logs when component mounts or when returning to screen
   useEffect(() => {
     if (id) {
       loadArchivedLogs();
     }
   }, [id]);
+
+  // Refresh archive data when screen comes into focus (e.g., after editing)
+  useFocusEffect(
+    useCallback(() => {
+      if (id) {
+        loadArchivedLogs();
+      }
+    }, [id])
+  );
 
   const loadArchivedLogs = async () => {
     if (!id) return;
@@ -66,6 +81,59 @@ export default function DetailsScreen() {
     } finally {
       setLoadingArchives(false);
     }
+  };
+
+  const handleEditArchive = (archiveItem) => {
+    // Navigate to form with archive data for editing
+    const archiveData = {
+      ...archiveItem,
+      isArchiveEdit: true,
+      originalTimeLogId: archiveItem.original_time_log,
+    };
+
+    // Convert archive data to URL parameters
+    const params = new URLSearchParams();
+    Object.keys(archiveData).forEach((key) => {
+      if (archiveData[key] !== null && archiveData[key] !== undefined) {
+        params.append(
+          key,
+          typeof archiveData[key] === "object"
+            ? JSON.stringify(archiveData[key])
+            : archiveData[key].toString()
+        );
+      }
+    });
+
+    router.push(`/timelogs/form?${params.toString()}`);
+  };
+
+  const handleDeleteArchive = (archiveItem) => {
+    setArchiveToDelete(archiveItem);
+    setDeleteArchiveModalVisible(true);
+  };
+
+  const handleConfirmDeleteArchive = async () => {
+    if (!archiveToDelete) return;
+
+    setDeletingArchive(true);
+    try {
+      // Note: We'll need to add deleteArchive function to the service
+      await timeLogService.deleteArchive(archiveToDelete.id);
+      // Refresh the archived logs
+      await loadArchivedLogs();
+      setDeleteArchiveModalVisible(false);
+      setArchiveToDelete(null);
+    } catch (error) {
+      console.error("Error deleting archive:", error);
+      // Handle error (could add toast notification)
+    } finally {
+      setDeletingArchive(false);
+    }
+  };
+
+  const handleCancelDeleteArchive = () => {
+    setDeleteArchiveModalVisible(false);
+    setArchiveToDelete(null);
   };
 
   // Prepare data for FlatList
@@ -166,7 +234,7 @@ export default function DetailsScreen() {
             {project && (
               <View style={styles.metadataItem}>
                 <Text style={styles.metadataLabel}>Project:</Text>
-                <Text style={styles.metadataValue}>
+                <Text style={styles.metadataValueFlexible}>
                   {typeof project === "object" ? project.title : project}
                 </Text>
               </View>
@@ -175,7 +243,7 @@ export default function DetailsScreen() {
             {location && (
               <View style={styles.metadataItem}>
                 <Text style={styles.metadataLabel}>Location:</Text>
-                <Text style={styles.metadataValue}>
+                <Text style={styles.metadataValueFlexible}>
                   {typeof location === "object" ? location.title : location}
                 </Text>
               </View>
@@ -215,21 +283,47 @@ export default function DetailsScreen() {
         return (
           <View style={styles.archiveItem}>
             <View style={styles.archiveItemHeader}>
-              <Text style={styles.archiveItemTitle} numberOfLines={1}>
-                {item.title || "Untitled"}
-              </Text>
               <Text style={styles.archiveItemDate}>
                 {item.created_at
                   ? new Date(item.created_at).toLocaleString()
                   : "Unknown"}
               </Text>
+              <View style={styles.archiveItemActions}>
+                <TouchableOpacity
+                  style={styles.archiveActionButton}
+                  onPress={() => handleEditArchive(item)}
+                >
+                  <Ionicons
+                    name="pencil"
+                    size={16}
+                    color={theme.colors.primary}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.archiveActionButton}
+                  onPress={() => handleDeleteArchive(item)}
+                >
+                  <Ionicons name="trash" size={16} color={theme.colors.error} />
+                </TouchableOpacity>
+              </View>
             </View>
-            {item.description && (
-              <Text style={styles.archiveItemContent} numberOfLines={2}>
-                {item.description}
-              </Text>
-            )}
             <View style={styles.archiveItemDetails}>
+              <Text
+                style={styles.archiveItemTitle}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {item.title || "Untitled"}
+              </Text>
+              {item.description && (
+                <Text
+                  style={styles.archiveItemDescription}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {item.description}
+                </Text>
+              )}
               <View style={styles.archiveItemDetailRow}>
                 <Text style={styles.archiveItemDetailLabel}>Duration:</Text>
                 <Text style={styles.archiveItemDetailValue}>
@@ -333,7 +427,7 @@ export default function DetailsScreen() {
     metadataItem: {
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "center",
+      alignItems: "flex-start",
       marginBottom: 12,
       paddingVertical: 8,
     },
@@ -349,6 +443,20 @@ export default function DetailsScreen() {
       flex: 2,
       textAlign: "right",
       marginLeft: 16,
+    },
+    metadataValueFlexible: {
+      fontSize: 16,
+      color: theme.colors.text,
+      flex: 2,
+      textAlign: "right",
+      marginLeft: 16,
+      lineHeight: 20,
+      ...(Platform.OS === "web" && {
+        wordWrap: "break-word",
+        overflowWrap: "break-word",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+      }),
     },
     archiveSection: {
       marginTop: 32,
@@ -383,13 +491,21 @@ export default function DetailsScreen() {
       flex: 1,
     },
     archiveItemDate: {
-      fontSize: 12,
-      color: theme.colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "bold",
+      color: theme.colors.text,
     },
-    archiveItemContent: {
-      fontSize: 12,
-      color: theme.colors.textSecondary,
+    archiveItemTitle: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: theme.colors.text,
       marginBottom: 4,
+    },
+    archiveItemDescription: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      marginBottom: 8,
+      lineHeight: 20,
     },
     archiveItemDetails: {
       marginTop: 8,
@@ -417,6 +533,65 @@ export default function DetailsScreen() {
       color: theme.colors.textSecondary,
       fontStyle: "italic",
       marginTop: 8,
+    },
+    archiveItemActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    archiveActionButton: {
+      padding: 6,
+      borderRadius: 6,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 20,
+    },
+    modalContainer: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 16,
+      width: "100%",
+      maxWidth: 400,
+      padding: 24,
+      alignItems: "center",
+    },
+    message: {
+      fontSize: 16,
+      color: theme.colors.text,
+      textAlign: "center",
+      marginBottom: 8,
+      lineHeight: 24,
+    },
+    buttonsContainer: {
+      flexDirection: "row",
+      width: "100%",
+      gap: 12,
+    },
+    cancelButton: {
+      flex: 1,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: "center",
+    },
+    confirmButton: {
+      flex: 1,
+      backgroundColor: theme.colors.primary,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: "center",
+    },
+    buttonText: {
+      fontSize: 16,
+      fontWeight: "600",
     },
   });
 
@@ -447,6 +622,71 @@ export default function DetailsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         />
+
+        {/* Delete Archive Confirmation Modal */}
+        <Modal
+          visible={deleteArchiveModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDeleteArchiveModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, { maxWidth: 400 }]}>
+              <View style={styles.iconContainer}>
+                <Ionicons
+                  name="trash-outline"
+                  size={32}
+                  color={theme.colors.error}
+                />
+              </View>
+
+              <Text style={styles.message}>Delete this archived version?</Text>
+
+              <Text
+                style={[
+                  styles.message,
+                  {
+                    fontSize: 14,
+                    color: theme.colors.textSecondary,
+                    marginBottom: 24,
+                  },
+                ]}
+              >
+                This will permanently remove this archived version. This action
+                cannot be undone.
+              </Text>
+
+              <View style={styles.buttonsContainer}>
+                <TouchableOpacity
+                  style={[styles.cancelButton, { flex: 1, marginRight: 6 }]}
+                  onPress={handleCancelDeleteArchive}
+                  disabled={deletingArchive}
+                >
+                  <Text
+                    style={[styles.buttonText, { color: theme.colors.text }]}
+                  >
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.confirmButton, { flex: 1, marginLeft: 6 }]}
+                  onPress={handleConfirmDeleteArchive}
+                  disabled={deletingArchive}
+                >
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      { color: theme.colors.onPrimary },
+                    ]}
+                  >
+                    {deletingArchive ? "Deleting..." : "Delete"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </ProtectedRoute>
   );

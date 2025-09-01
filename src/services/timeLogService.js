@@ -357,6 +357,59 @@ export const timeLogService = {
     return data;
   },
 
+  // Delete an archived time log
+  async deleteArchive(archivedLogId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
+    const { error } = await supabase
+      .from("time_logs_archive")
+      .delete()
+      .eq("id", archivedLogId)
+      .eq("created_by", user.id);
+
+    if (error) throw error;
+    return true;
+  },
+
+  // Update an archived time log
+  async updateArchive(archivedLogId, archiveData) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
+    const { data, error } = await supabase
+      .from("time_logs_archive")
+      .update({
+        ...archiveData,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", archivedLogId)
+      .eq("created_by", user.id)
+      .select(
+        `
+        *,
+        projects:project (
+          id,
+          title,
+          description
+        ),
+        locations:location (
+          id,
+          title,
+          description
+        )
+      `
+      )
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   // Restore an archived time log (optional feature)
   async restoreArchivedLog(archivedLogId) {
     const {
