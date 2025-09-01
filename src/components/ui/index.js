@@ -8,3 +8,4 @@ export { default as Picker } from "./Picker";
 export { default as MultiSelectPicker } from "./MultiSelectPicker";
 export { default as TimeInput } from "./TimeInput";
 export { default as DurationInput } from "./DurationInput";
+export { default as DatePicker } from "./DatePicker";

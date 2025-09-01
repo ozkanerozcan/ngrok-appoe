@@ -24,6 +24,7 @@ export default function Card({
   project,
   location,
   duration,
+  deadline_at,
   ...props
 }) {
   const { theme } = useTheme();
@@ -192,6 +193,7 @@ export default function Card({
                     project: project ? JSON.stringify(project) : null,
                     location: location ? JSON.stringify(location) : null,
                     duration: duration ? duration.toString() : null,
+                    deadline_at: deadline_at ? deadline_at.toString() : null,
                   },
                 });
               }}

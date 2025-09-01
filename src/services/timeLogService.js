@@ -13,6 +13,7 @@ export const timeLogService = {
       .select(
         `
         *,
+        status,
         projects:project (
           id,
           title,
@@ -28,6 +29,7 @@ export const timeLogService = {
       `
       )
       .eq("created_by", user.id)
+      .order("deadline_at", { ascending: true })
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -46,6 +48,7 @@ export const timeLogService = {
       .select(
         `
         *,
+        status,
         projects:project (
           id,
           title,
@@ -80,6 +83,7 @@ export const timeLogService = {
       .insert([
         {
           ...timeLogData,
+          status: timeLogData.status || "in_progress", // Default to In Progress
           created_by: user.id,
           updated_by: user.id,
         },
@@ -87,6 +91,7 @@ export const timeLogService = {
       .select(
         `
         *,
+        status,
         projects:project (
           id,
           title,
@@ -103,6 +108,57 @@ export const timeLogService = {
 
     if (error) throw error;
     return data;
+  },
+
+  // Archive a time log (copy to archive and delete from main)
+  async archive(id) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
+    // First get the current time log data
+    const { data: currentLog, error: fetchError } = await supabase
+      .from("time_logs")
+      .select("*")
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Archive the current data (exclude id, created_at, updated_at to let Supabase generate new timestamps)
+    const {
+      id: _,
+      created_at: __,
+      updated_at: ___,
+      ...archiveData
+    } = currentLog; // Exclude id and timestamp fields
+
+    const { data: archivedLog, error: archiveError } = await supabase
+      .from("time_logs_archive")
+      .insert([
+        {
+          ...archiveData,
+          original_time_log: id,
+          // Don't include created_at - Supabase will auto-generate it with NOW()
+        },
+      ])
+      .select()
+      .single();
+
+    if (archiveError) throw archiveError;
+
+    // Delete the original time log
+    const { error: deleteError } = await supabase
+      .from("time_logs")
+      .delete()
+      .eq("id", id)
+      .eq("created_by", user.id);
+
+    if (deleteError) throw deleteError;
+
+    return archivedLog;
   },
 
   // Archive a time log before updating
@@ -162,6 +218,44 @@ export const timeLogService = {
       .from("time_logs")
       .update({
         ...timeLogData,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .select(
+        `
+        *,
+        status,
+        projects:project (
+          id,
+          title,
+          description
+        ),
+        locations:location (
+          id,
+          title,
+          description
+        )
+      `
+      )
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Update time log status
+  async updateStatus(id, status) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
+    const { data, error } = await supabase
+      .from("time_logs")
+      .update({
+        status: status,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       })
@@ -231,6 +325,7 @@ export const timeLogService = {
       )
       .eq("created_by", user.id)
       .eq("project", projectId)
+      .order("deadline_at", { ascending: true })
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -263,6 +358,7 @@ export const timeLogService = {
       )
       .eq("created_by", user.id)
       .eq("location", locationId)
+      .order("deadline_at", { ascending: true })
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -436,6 +532,7 @@ export const timeLogService = {
         project: archivedLog.project,
         location: archivedLog.location,
         duration: archivedLog.duration,
+        deadline_at: archivedLog.deadline_at,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       })

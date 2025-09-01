@@ -27,7 +27,7 @@ import {
 import { showToast } from "../../src/utils/toast";
 import ProtectedRoute from "../../src/components/ProtectedRoute";
 import { Ionicons } from "@expo/vector-icons";
-import { DurationInput } from "../../src/components/ui";
+import { DurationInput, DatePicker } from "../../src/components/ui";
 
 export default function TimeLogFormScreen() {
   const router = useRouter();
@@ -44,6 +44,7 @@ export default function TimeLogFormScreen() {
     project: "",
     location: "",
     duration: "",
+    deadline_at: null,
   });
   const [projects, setProjects] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -127,6 +128,7 @@ export default function TimeLogFormScreen() {
         project: data.project || "",
         location: data.location || "",
         duration: data.duration || "",
+        deadline_at: data.deadline_at || null,
       });
     } catch (error) {
       console.error("Error loading data:", error);
@@ -150,30 +152,40 @@ export default function TimeLogFormScreen() {
       return;
     }
 
-    if (!formData.location) {
-      showToast("error", "Please select a location");
+    if (!formData.deadline_at) {
+      showToast("error", "Please enter a deadline");
       return;
     }
 
-    if (!formData.duration) {
-      showToast("error", "Please enter duration");
-      return;
+    if (isEditing) {
+      // Edit mode: keep all validations
+      if (!formData.location) {
+        showToast("error", "Please select a location");
+        return;
+      }
+
+      if (!formData.duration) {
+        showToast("error", "Please enter duration");
+        return;
+      }
     }
 
-    // Handle duration parsing more robustly
-    let duration;
-    if (typeof formData.duration === "string") {
-      duration = parseFloat(formData.duration);
-    } else if (typeof formData.duration === "number") {
-      duration = formData.duration;
-    } else {
-      showToast("error", "Invalid duration format");
-      return;
-    }
+    // Handle duration parsing more robustly (only for edit mode)
+    let duration = 0;
+    if (isEditing) {
+      if (typeof formData.duration === "string") {
+        duration = parseFloat(formData.duration);
+      } else if (typeof formData.duration === "number") {
+        duration = formData.duration;
+      } else {
+        showToast("error", "Invalid duration format");
+        return;
+      }
 
-    if (isNaN(duration) || duration <= 0) {
-      showToast("error", "Duration must be a positive number");
-      return;
+      if (isNaN(duration) || duration <= 0) {
+        showToast("error", "Duration must be a positive number");
+        return;
+      }
     }
 
     console.log("Submitting with duration:", duration);
@@ -182,8 +194,9 @@ export default function TimeLogFormScreen() {
       title: formData.title.trim(),
       description: formData.description || "",
       project: formData.project,
-      location: formData.location,
-      duration: duration,
+      location: isEditing ? formData.location : null,
+      duration: isEditing ? duration : 0,
+      deadline_at: formData.deadline_at,
     };
 
     console.log("Submit data:", submitData);
@@ -260,8 +273,9 @@ export default function TimeLogFormScreen() {
       title: formData.title.trim(),
       description: formData.description || "",
       project: formData.project,
-      location: formData.location,
+      location: formData.location || null,
       duration: parseFloat(formData.duration),
+      deadline_at: formData.deadline_at || null,
     };
     await performSave(submitData, true);
   };
@@ -272,8 +286,9 @@ export default function TimeLogFormScreen() {
       title: formData.title.trim(),
       description: formData.description || "",
       project: formData.project,
-      location: formData.location,
+      location: formData.location || null,
       duration: parseFloat(formData.duration),
+      deadline_at: formData.deadline_at || null,
     };
     await performSave(submitData, false);
   };
@@ -666,43 +681,62 @@ export default function TimeLogFormScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Location <Text style={styles.required}>*</Text>
+                Deadline <Text style={styles.required}>*</Text>
               </Text>
-              <TouchableOpacity
-                style={styles.picker}
-                onPress={() => setLocationModalVisible(true)}
-              >
-                <Text
-                  style={[
-                    styles.pickerText,
-                    !selectedLocation && styles.pickerPlaceholder,
-                  ]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {selectedLocation
-                    ? selectedLocation.title
-                    : "Select a location"}
-                </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Duration <Text style={styles.required}>*</Text>
-              </Text>
-              <DurationInput
-                value={formData.duration}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, duration: text })
+              <DatePicker
+                value={formData.deadline_at}
+                onChange={(date) =>
+                  setFormData({ ...formData, deadline_at: date })
                 }
+                placeholder="Select deadline date"
+                minimumDate={new Date()}
+                defaultToToday={true}
               />
             </View>
+
+            {isEditing && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Location <Text style={styles.required}>*</Text>
+                </Text>
+                <TouchableOpacity
+                  style={styles.picker}
+                  onPress={() => setLocationModalVisible(true)}
+                >
+                  <Text
+                    style={[
+                      styles.pickerText,
+                      !selectedLocation && styles.pickerPlaceholder,
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {selectedLocation
+                      ? selectedLocation.title
+                      : "Select a location"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {isEditing && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Duration <Text style={styles.required}>*</Text>
+                </Text>
+                <DurationInput
+                  value={formData.duration}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, duration: text })
+                  }
+                />
+              </View>
+            )}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Description</Text>

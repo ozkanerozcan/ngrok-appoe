@@ -22,6 +22,7 @@ import {
   LoadingScreen,
   DeleteConfirmationModal,
   MultiSelectPicker,
+  DatePicker,
 } from "../../src/components/ui";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -347,6 +348,7 @@ export default function TimeLogsScreen() {
       project={item.projects}
       location={item.locations}
       duration={item.duration}
+      deadline_at={item.deadline_at}
       onEdit={() => handleEdit(item)}
       onDelete={() => handleDelete(item)}
       rightContent={
@@ -364,8 +366,8 @@ export default function TimeLogsScreen() {
       selectedProjects.length > 0 ||
       selectedLocations.length > 0 ||
       selectedUpdatedBy.length > 0 ||
-      dateFrom ||
-      dateTo ||
+      (dateFrom && dateFrom.trim()) ||
+      (dateTo && dateTo.trim()) ||
       searchText.trim();
 
     return (
@@ -407,8 +409,8 @@ export default function TimeLogsScreen() {
     setSelectedProjects([]);
     setSelectedLocations([]);
     setSelectedUpdatedBy([]);
-    setDateFrom("");
-    setDateTo("");
+    setDateFrom(null);
+    setDateTo(null);
     setSearchText("");
   };
 
@@ -508,58 +510,36 @@ export default function TimeLogsScreen() {
               )}
             </View>
 
-            <View>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.dateInput}
-                  placeholder="From (YYYY-MM-DD)"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={dateFrom}
-                  onChangeText={setDateFrom}
-                />
-                {dateFrom && dateFrom.trim().length > 0 && (
-                  <TouchableOpacity
-                    style={[
-                      styles.clearButton,
-                      { justifyContent: "center", alignItems: "center" },
-                    ]}
-                    onPress={() => setDateFrom("")}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons
-                      name="close-circle"
-                      size={20}
-                      color={theme.colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.dateInput}
-                  placeholder="To (YYYY-MM-DD)"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={dateTo}
-                  onChangeText={setDateTo}
-                />
-                {dateTo && dateTo.trim().length > 0 && (
-                  <TouchableOpacity
-                    style={[
-                      styles.clearButton,
-                      { justifyContent: "center", alignItems: "center" },
-                    ]}
-                    onPress={() => setDateTo("")}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons
-                      name="close-circle"
-                      size={20}
-                      color={theme.colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
+            <DatePicker
+              value={dateFrom}
+              onChange={setDateFrom}
+              placeholder="From date"
+              style={{
+                backgroundColor: theme.colors.background,
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 16,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+                minHeight: 50,
+                marginBottom: 12,
+              }}
+            />
+            <DatePicker
+              value={dateTo}
+              onChange={setDateTo}
+              placeholder="To date"
+              style={{
+                backgroundColor: theme.colors.background,
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 16,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+                minHeight: 50,
+                marginBottom: 12,
+              }}
+            />
 
             <MultiSelectPicker
               value={selectedProjects}

@@ -52,6 +52,9 @@ export default function DashboardScreen() {
     remainingTime: 8.5,
     overtimeHours: 0,
     goalStatus: "not-started", // 'not-started', 'in-progress', 'completed', 'overachieved'
+    // Deadline tracking
+    approachingDeadlines: [],
+    overdueDeadlines: [],
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,6 +153,36 @@ export default function DashboardScreen() {
         goalStatus = todayTotal > dailyGoal ? "overachieved" : "completed";
       }
 
+      // Calculate deadline-related data
+      const currentDate = new Date();
+      const oneWeekFromNow = new Date(currentDate);
+      oneWeekFromNow.setDate(currentDate.getDate() + 7);
+
+      // Filter time logs with deadlines
+      const timeLogsWithDeadlines = timeLogs.filter((log) => log.deadline_at);
+
+      // Approaching deadlines (within 1 week, not done)
+      const approachingDeadlines = timeLogsWithDeadlines
+        .filter((log) => {
+          const deadline = new Date(log.deadline_at);
+          return (
+            deadline >= currentDate &&
+            deadline <= oneWeekFromNow &&
+            log.status !== "done"
+          );
+        })
+        .sort((a, b) => new Date(a.deadline_at) - new Date(b.deadline_at))
+        .slice(0, 5); // Show top 5
+
+      // Overdue deadlines (past current date, not done)
+      const overdueDeadlines = timeLogsWithDeadlines
+        .filter(
+          (log) =>
+            new Date(log.deadline_at) < currentDate && log.status !== "done"
+        )
+        .sort((a, b) => new Date(a.deadline_at) - new Date(b.deadline_at))
+        .slice(0, 5); // Show top 5
+
       // Get recent logs (last 3)
       const recentLogsList = timeLogs.slice(0, 3);
 
@@ -170,6 +203,8 @@ export default function DashboardScreen() {
         remainingTime,
         overtimeHours,
         goalStatus,
+        approachingDeadlines,
+        overdueDeadlines,
       });
     } catch (error) {
       console.error("Error loading dashboard data:", error);
@@ -309,41 +344,43 @@ export default function DashboardScreen() {
     },
     quickActionsGrid: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
+      alignItems: "center",
     },
     quickActionItem: {
       backgroundColor: theme.colors.surface,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 12,
-      width: "48%",
+      borderRadius: 8,
+      padding: 8,
+      width: "23%",
+      height: 70,
       alignItems: "center",
+      justifyContent: "center",
       borderWidth: 1,
       borderColor: theme.colors.border,
       shadowColor: "#000",
       shadowOffset: {
         width: 0,
-        height: 2,
+        height: 1,
       },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
+      shadowOpacity: 0.03,
+      shadowRadius: 2,
+      elevation: 1,
     },
     quickActionIcon: {
-      width: 50,
-      height: 50,
-      borderRadius: 25,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       backgroundColor: theme.colors.primary + "10",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 8,
+      marginBottom: 4,
     },
     quickActionLabel: {
-      fontSize: 14,
+      fontSize: 10,
       fontWeight: "600",
       color: theme.colors.text,
       textAlign: "center",
+      lineHeight: 12,
     },
     loadingContainer: {
       flex: 1,
@@ -517,6 +554,57 @@ export default function DashboardScreen() {
       color: "#D97706",
       fontWeight: "500",
     },
+    deadlineSection: {
+      marginTop: 10,
+      marginBottom: 20,
+    },
+    deadlineTitle: {
+      fontSize: 20,
+      fontWeight: "600",
+      color: theme.colors.text,
+      marginBottom: 16,
+    },
+    deadlineItem: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    deadlineItemTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.text,
+      marginBottom: 4,
+    },
+    deadlineItemMeta: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      marginBottom: 8,
+    },
+    deadlineDate: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.colors.primary,
+    },
+    approachingDeadlineItem: {
+      borderLeftWidth: 4,
+      borderLeftColor: "#F59E0B", // Orange for approaching
+    },
+    overdueDeadlineItem: {
+      borderLeftWidth: 4,
+      borderLeftColor: "#EF4444", // Red for overdue
+    },
+    noDeadlinesContainer: {
+      padding: 20,
+      alignItems: "center",
+    },
+    noDeadlinesText: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+    },
   });
 
   const formatDate = (dateString) => {
@@ -528,6 +616,16 @@ export default function DashboardScreen() {
     const minutes = String(date.getMinutes()).padStart(2, "0");
 
     return `${year}-${month}-${day} ${hours}:${minutes}`;
+  };
+
+  // Helper function to format date as DD/MM/YYYY
+  const formatDateDDMMYYYY = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
   };
 
   if (loading) {
@@ -572,7 +670,7 @@ export default function DashboardScreen() {
               <View style={styles.quickActionIcon}>
                 <Ionicons
                   name="time-outline"
-                  size={28}
+                  size={20}
                   color={theme.colors.primary}
                 />
               </View>
@@ -586,7 +684,7 @@ export default function DashboardScreen() {
               <View style={styles.quickActionIcon}>
                 <Ionicons
                   name="folder-outline"
-                  size={28}
+                  size={20}
                   color={theme.colors.primary}
                 />
               </View>
@@ -600,7 +698,7 @@ export default function DashboardScreen() {
               <View style={styles.quickActionIcon}>
                 <Ionicons
                   name="location-outline"
-                  size={28}
+                  size={20}
                   color={theme.colors.primary}
                 />
               </View>
@@ -614,7 +712,7 @@ export default function DashboardScreen() {
               <View style={styles.quickActionIcon}>
                 <Ionicons
                   name="list-outline"
-                  size={28}
+                  size={20}
                   color={theme.colors.primary}
                 />
               </View>
@@ -622,6 +720,54 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Overdue Deadlines */}
+        {dashboardData.overdueDeadlines.length > 0 && (
+          <View style={styles.deadlineSection}>
+            <Text style={styles.deadlineTitle}>Overdue Deadlines</Text>
+            {dashboardData.overdueDeadlines.map((log) => (
+              <TouchableOpacity
+                key={log.id}
+                style={[styles.deadlineItem, styles.overdueDeadlineItem]}
+                onPress={() => router.push(`/details?id=${log.id}`)}
+              >
+                <Text style={styles.deadlineItemTitle}>{log.title}</Text>
+                <Text style={styles.deadlineItemMeta}>
+                  {log.description && `${log.description} • `}
+                  {log.projects && `${log.projects.title} • `}
+                  {formatDurationEnglish(log.duration || 0)}
+                </Text>
+                <Text style={styles.deadlineDate}>
+                  Overdue: {formatDateDDMMYYYY(log.deadline_at)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Approaching Deadlines */}
+        {dashboardData.approachingDeadlines.length > 0 && (
+          <View style={styles.deadlineSection}>
+            <Text style={styles.deadlineTitle}>Approaching Deadlines</Text>
+            {dashboardData.approachingDeadlines.map((log) => (
+              <TouchableOpacity
+                key={log.id}
+                style={[styles.deadlineItem, styles.approachingDeadlineItem]}
+                onPress={() => router.push(`/details?id=${log.id}`)}
+              >
+                <Text style={styles.deadlineItemTitle}>{log.title}</Text>
+                <Text style={styles.deadlineItemMeta}>
+                  {log.description && `${log.description} • `}
+                  {log.projects && `${log.projects.title} • `}
+                  {formatDurationEnglish(log.duration || 0)}
+                </Text>
+                <Text style={styles.deadlineDate}>
+                  Due: {formatDateDDMMYYYY(log.deadline_at)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Daily Goal Progress */}
         <View style={styles.goalSection}>

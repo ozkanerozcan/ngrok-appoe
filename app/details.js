@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import ProtectedRoute from "../src/components/ProtectedRoute";
 import { formatDurationEnglish } from "../src/utils/duration";
 import { timeLogService } from "../src/services";
+import { showToast } from "../src/utils/toast";
 
 export default function DetailsScreen() {
   const router = useRouter();
@@ -25,12 +26,26 @@ export default function DetailsScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
 
+  // Helper function to format date as DD/MM/YYYY HH:mm
+  const formatDateDDMMYYYY = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  };
+
   const [archivedLogs, setArchivedLogs] = useState([]);
   const [loadingArchives, setLoadingArchives] = useState(false);
   const [deleteArchiveModalVisible, setDeleteArchiveModalVisible] =
     useState(false);
   const [archiveToDelete, setArchiveToDelete] = useState(null);
   const [deletingArchive, setDeletingArchive] = useState(false);
+  const [markDoneModalVisible, setMarkDoneModalVisible] = useState(false);
+  const [markingDone, setMarkingDone] = useState(false);
 
   const {
     id,
@@ -44,6 +59,7 @@ export default function DetailsScreen() {
     project: projectParam,
     location: locationParam,
     duration,
+    deadline_at,
   } = params;
 
   // Parse JSON strings back to objects
@@ -136,6 +152,33 @@ export default function DetailsScreen() {
     setArchiveToDelete(null);
   };
 
+  const handleMarkDone = () => {
+    setMarkDoneModalVisible(true);
+  };
+
+  const handleConfirmMarkDone = async () => {
+    if (!id) return;
+
+    setMarkingDone(true);
+    try {
+      // Mark the time log as done (status = "done")
+      await timeLogService.updateStatus(id, "done");
+      showToast("success", "Time log marked as done!");
+      setMarkDoneModalVisible(false);
+      // Navigate back to the time logs list
+      router.back();
+    } catch (error) {
+      console.error("Error updating time log status:", error);
+      showToast("error", "Failed to update time log status");
+    } finally {
+      setMarkingDone(false);
+    }
+  };
+
+  const handleCancelMarkDone = () => {
+    setMarkDoneModalVisible(false);
+  };
+
   // Prepare data for FlatList
   const getFlatListData = () => {
     const data = [];
@@ -153,7 +196,8 @@ export default function DetailsScreen() {
       updated_at ||
       project ||
       location ||
-      duration
+      duration ||
+      deadline_at
     ) {
       data.push({ type: "metadata" });
     }
@@ -202,7 +246,7 @@ export default function DetailsScreen() {
               <View style={styles.metadataItem}>
                 <Text style={styles.metadataLabel}>Created At:</Text>
                 <Text style={styles.metadataValue}>
-                  {new Date(created_at).toLocaleString()}
+                  {formatDateDDMMYYYY(created_at)}
                 </Text>
               </View>
             )}
@@ -226,7 +270,7 @@ export default function DetailsScreen() {
               <View style={styles.metadataItem}>
                 <Text style={styles.metadataLabel}>Updated At:</Text>
                 <Text style={styles.metadataValue}>
-                  {new Date(updated_at).toLocaleString()}
+                  {formatDateDDMMYYYY(updated_at)}
                 </Text>
               </View>
             )}
@@ -254,6 +298,15 @@ export default function DetailsScreen() {
                 <Text style={styles.metadataLabel}>Duration:</Text>
                 <Text style={styles.metadataValue}>
                   {formatDurationEnglish(parseFloat(duration))}
+                </Text>
+              </View>
+            )}
+
+            {deadline_at && (
+              <View style={styles.metadataItem}>
+                <Text style={styles.metadataLabel}>Deadline:</Text>
+                <Text style={styles.metadataValue}>
+                  {formatDateDDMMYYYY(deadline_at)}
                 </Text>
               </View>
             )}
@@ -285,7 +338,7 @@ export default function DetailsScreen() {
             <View style={styles.archiveItemHeader}>
               <Text style={styles.archiveItemDate}>
                 {item.created_at
-                  ? new Date(item.created_at).toLocaleString()
+                  ? formatDateDDMMYYYY(item.created_at)
                   : "Unknown"}
               </Text>
               <View style={styles.archiveItemActions}>
@@ -355,6 +408,14 @@ export default function DetailsScreen() {
                     {typeof item.locations === "object"
                       ? item.locations.title
                       : item.locations}
+                  </Text>
+                </View>
+              )}
+              {item.deadline_at && (
+                <View style={styles.archiveItemDetailRow}>
+                  <Text style={styles.archiveItemDetailLabel}>Deadline:</Text>
+                  <Text style={styles.archiveItemDetailValue}>
+                    {formatDateDDMMYYYY(item.deadline_at)}
                   </Text>
                 </View>
               )}
@@ -546,6 +607,16 @@ export default function DetailsScreen() {
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
+    iconContainer: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: theme.colors.primary + "20",
+      alignItems: "center",
+      justifyContent: "center",
+      alignSelf: "center",
+      marginBottom: 16,
+    },
     modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -611,7 +682,16 @@ export default function DetailsScreen() {
 
           <Text style={styles.headerTitle}>Details</Text>
 
-          <View style={styles.headerButton} />
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={handleMarkDone}
+          >
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={20}
+              color={theme.colors.primary}
+            />
+          </TouchableOpacity>
         </View>
 
         <FlatList
@@ -622,6 +702,70 @@ export default function DetailsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         />
+
+        {/* Mark as Done Confirmation Modal */}
+        <Modal
+          visible={markDoneModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setMarkDoneModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, { maxWidth: 400 }]}>
+              <View style={styles.iconContainer}>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={32}
+                  color={theme.colors.primary}
+                />
+              </View>
+
+              <Text style={styles.message}>Mark this time log as done?</Text>
+
+              <Text
+                style={[
+                  styles.message,
+                  {
+                    fontSize: 14,
+                    color: theme.colors.textSecondary,
+                    marginBottom: 24,
+                  },
+                ]}
+              >
+                This will mark the time log as completed and update its status.
+              </Text>
+
+              <View style={styles.buttonsContainer}>
+                <TouchableOpacity
+                  style={[styles.cancelButton, { flex: 1, marginRight: 6 }]}
+                  onPress={handleCancelMarkDone}
+                  disabled={markingDone}
+                >
+                  <Text
+                    style={[styles.buttonText, { color: theme.colors.text }]}
+                  >
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.confirmButton, { flex: 1, marginLeft: 6 }]}
+                  onPress={handleConfirmMarkDone}
+                  disabled={markingDone}
+                >
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      { color: theme.colors.onPrimary },
+                    ]}
+                  >
+                    {markingDone ? "Updating..." : "Mark as Done"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Delete Archive Confirmation Modal */}
         <Modal
