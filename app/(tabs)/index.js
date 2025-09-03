@@ -74,31 +74,37 @@ export default function DashboardScreen() {
 
       // Calculate today's total
       const todayTotal = timeLogs
-        .filter((log) => new Date(log.created_at) >= today)
+        .filter((log) => new Date(log.updated_at || log.created_at) >= today)
         .reduce((sum, log) => sum + (log.duration || 0), 0);
 
       // Calculate this week's total
       const weekStart = new Date(today);
       weekStart.setDate(today.getDate() - today.getDay());
       const weekTotal = timeLogs
-        .filter((log) => new Date(log.created_at) >= weekStart)
+        .filter(
+          (log) => new Date(log.updated_at || log.created_at) >= weekStart
+        )
         .reduce((sum, log) => sum + (log.duration || 0), 0);
 
       // Calculate this month's total
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
       const monthTotal = timeLogs
-        .filter((log) => new Date(log.created_at) >= monthStart)
+        .filter(
+          (log) => new Date(log.updated_at || log.created_at) >= monthStart
+        )
         .reduce((sum, log) => sum + (log.duration || 0), 0);
 
       // Calculate average daily time and active days (last 30 days)
       const thirtyDaysAgo = new Date(today);
       thirtyDaysAgo.setDate(today.getDate() - 30);
       const recentLogs = timeLogs.filter(
-        (log) => new Date(log.created_at) >= thirtyDaysAgo
+        (log) => new Date(log.updated_at || log.created_at) >= thirtyDaysAgo
       );
       const uniqueDays = [
         ...new Set(
-          recentLogs.map((log) => new Date(log.created_at).toDateString())
+          recentLogs.map((log) =>
+            new Date(log.updated_at || log.created_at).toDateString()
+          )
         ),
       ].length;
       const averageDaily =
@@ -155,8 +161,10 @@ export default function DashboardScreen() {
 
       // Calculate deadline-related data
       const currentDate = new Date();
-      const oneWeekFromNow = new Date(currentDate);
-      oneWeekFromNow.setDate(currentDate.getDate() + 7);
+      const todayForDeadlines = new Date(currentDate);
+      todayForDeadlines.setHours(0, 0, 0, 0); // Set to start of today
+      const oneWeekFromNow = new Date(todayForDeadlines);
+      oneWeekFromNow.setDate(todayForDeadlines.getDate() + 7);
 
       // Filter time logs with deadlines
       const timeLogsWithDeadlines = timeLogs.filter((log) => log.deadline_at);
@@ -166,7 +174,7 @@ export default function DashboardScreen() {
         .filter((log) => {
           const deadline = new Date(log.deadline_at);
           return (
-            deadline >= currentDate &&
+            deadline >= todayForDeadlines &&
             deadline <= oneWeekFromNow &&
             log.status !== "done"
           );
@@ -178,13 +186,20 @@ export default function DashboardScreen() {
       const overdueDeadlines = timeLogsWithDeadlines
         .filter(
           (log) =>
-            new Date(log.deadline_at) < currentDate && log.status !== "done"
+            new Date(log.deadline_at) < todayForDeadlines &&
+            log.status !== "done"
         )
         .sort((a, b) => new Date(a.deadline_at) - new Date(b.deadline_at))
         .slice(0, 5); // Show top 5
 
-      // Get recent logs (last 3)
-      const recentLogsList = timeLogs.slice(0, 3);
+      // Get recent logs (last 3, sorted by updated_at descending)
+      const recentLogsList = timeLogs
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at || b.created_at) -
+            new Date(a.updated_at || a.created_at)
+        )
+        .slice(0, 3);
 
       setDashboardData({
         todayTotal,
@@ -329,12 +344,8 @@ export default function DashboardScreen() {
       color: theme.colors.textSecondary,
     },
     quickActionsCard: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 16,
-      padding: 20,
+      marginTop: 10,
       marginBottom: 20,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
     },
     quickActionsTitle: {
       fontSize: 20,
@@ -365,6 +376,8 @@ export default function DashboardScreen() {
       shadowOpacity: 0.03,
       shadowRadius: 2,
       elevation: 1,
+      flexDirection: "column",
+      alignContent: "center",
     },
     quickActionIcon: {
       width: 32,
@@ -373,7 +386,9 @@ export default function DashboardScreen() {
       backgroundColor: theme.colors.primary + "10",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 4,
+      marginBottom: 6,
+      paddingTop: 2,
+      alignSelf: "center",
     },
     quickActionLabel: {
       fontSize: 10,
@@ -381,6 +396,8 @@ export default function DashboardScreen() {
       color: theme.colors.text,
       textAlign: "center",
       lineHeight: 12,
+      alignSelf: "center",
+      width: "100%",
     },
     loadingContainer: {
       flex: 1,
@@ -660,7 +677,7 @@ export default function DashboardScreen() {
         </View>
 
         {/* Quick Actions */}
-        <View style={styles.quickActionsContainer}>
+        <View style={styles.quickActionsCard}>
           <Text style={styles.quickActionsTitle}>Quick Actions</Text>
           <View style={styles.quickActionsGrid}>
             <TouchableOpacity
@@ -674,7 +691,7 @@ export default function DashboardScreen() {
                   color={theme.colors.primary}
                 />
               </View>
-              <Text style={styles.quickActionLabel}>Add Time Log</Text>
+              <Text style={styles.quickActionLabel}>{"Add Time\nLog"}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -688,7 +705,7 @@ export default function DashboardScreen() {
                   color={theme.colors.primary}
                 />
               </View>
-              <Text style={styles.quickActionLabel}>Add Project</Text>
+              <Text style={styles.quickActionLabel}>{"Add\nProject"}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -702,7 +719,7 @@ export default function DashboardScreen() {
                   color={theme.colors.primary}
                 />
               </View>
-              <Text style={styles.quickActionLabel}>Add Location</Text>
+              <Text style={styles.quickActionLabel}>{"Add\nLocation"}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -716,7 +733,7 @@ export default function DashboardScreen() {
                   color={theme.colors.primary}
                 />
               </View>
-              <Text style={styles.quickActionLabel}>View Logs</Text>
+              <Text style={styles.quickActionLabel}>{"View\nLogs"}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -925,7 +942,7 @@ export default function DashboardScreen() {
                 <Text style={styles.recentItemTitle}>{log.title}</Text>
                 <Text style={styles.recentItemMeta}>
                   {formatDurationEnglish(log.duration)} •{" "}
-                  {formatDate(log.created_at)}
+                  {formatDate(log.updated_at || log.created_at)}
                   {log.projects && ` • ${log.projects.title}`}
                 </Text>
               </View>

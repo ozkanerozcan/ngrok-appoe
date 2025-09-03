@@ -45,6 +45,7 @@ export default function TimeLogFormScreen() {
     location: "",
     duration: "",
     deadline_at: null,
+    status: "in_progress",
   });
   const [projects, setProjects] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -52,6 +53,7 @@ export default function TimeLogFormScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [projectModalVisible, setProjectModalVisible] = useState(false);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [archiveModalVisible, setArchiveModalVisible] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [locationSearch, setLocationSearch] = useState("");
@@ -86,8 +88,16 @@ export default function TimeLogFormScreen() {
   useEffect(() => {
     if (isEditing) {
       loadTimeLog();
+    } else {
+      // For new time logs, set deadline to today
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+      const todayString = `${year}-${month}-${day}`;
+      setFormData((prev) => ({ ...prev, deadline_at: todayString }));
     }
-  }, [id]);
+  }, [id, isEditing]);
 
   const loadData = async () => {
     try {
@@ -129,6 +139,7 @@ export default function TimeLogFormScreen() {
         location: data.location || "",
         duration: data.duration || "",
         deadline_at: data.deadline_at || null,
+        status: data.status || "in_progress",
       });
     } catch (error) {
       console.error("Error loading data:", error);
@@ -197,6 +208,7 @@ export default function TimeLogFormScreen() {
       location: isEditing ? formData.location : null,
       duration: isEditing ? duration : 0,
       deadline_at: formData.deadline_at,
+      status: isEditing ? formData.status : "in_progress",
     };
 
     console.log("Submit data:", submitData);
@@ -289,6 +301,7 @@ export default function TimeLogFormScreen() {
       location: formData.location || null,
       duration: parseFloat(formData.duration),
       deadline_at: formData.deadline_at || null,
+      status: formData.status,
     };
     await performSave(submitData, false);
   };
@@ -690,9 +703,36 @@ export default function TimeLogFormScreen() {
                 }
                 placeholder="Select deadline date"
                 minimumDate={new Date()}
-                defaultToToday={true}
               />
             </View>
+
+            {isEditing && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Status</Text>
+                <TouchableOpacity
+                  style={styles.picker}
+                  onPress={() => setStatusModalVisible(true)}
+                >
+                  <Text
+                    style={[
+                      styles.pickerText,
+                      !formData.status && styles.pickerPlaceholder,
+                    ]}
+                  >
+                    {formData.status === "in_progress"
+                      ? "In Progress"
+                      : formData.status === "done"
+                      ? "Done"
+                      : "Select status"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
 
             {isEditing && (
               <View style={styles.inputGroup}>
@@ -926,6 +966,75 @@ export default function TimeLogFormScreen() {
                     </Text>
                   </View>
                 )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Status Selection Modal */}
+        <Modal
+          visible={statusModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setStatusModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Status</Text>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setStatusModalVisible(false)}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={theme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.listContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.item,
+                    formData.status === "in_progress" && styles.selectedItem,
+                  ]}
+                  onPress={() => {
+                    setFormData({ ...formData, status: "in_progress" });
+                    setStatusModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.itemText,
+                      formData.status === "in_progress" &&
+                        styles.selectedItemText,
+                    ]}
+                  >
+                    In Progress
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.item,
+                    formData.status === "done" && styles.selectedItem,
+                  ]}
+                  onPress={() => {
+                    setFormData({ ...formData, status: "done" });
+                    setStatusModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.itemText,
+                      formData.status === "done" && styles.selectedItemText,
+                    ]}
+                  >
+                    Done
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>

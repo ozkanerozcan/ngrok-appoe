@@ -144,6 +144,16 @@ export default function TimeLogsScreen() {
       fontWeight: "600",
       color: theme.colors.primary,
     },
+    statusBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      marginLeft: 8,
+    },
+    statusText: {
+      fontSize: 12,
+      fontWeight: "600",
+    },
     filterSection: {
       backgroundColor: theme.colors.surface,
       marginHorizontal: 20,
@@ -250,7 +260,11 @@ export default function TimeLogsScreen() {
         projectService.getAll(),
         locationService.getAll(),
       ]);
-      setTimeLogs(timeLogsData);
+      setTimeLogs(
+        timeLogsData.sort(
+          (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
+        )
+      );
       setProjects(projectsData);
       setLocations(locationsData);
     } catch (error) {
@@ -325,6 +339,63 @@ export default function TimeLogsScreen() {
     return formatDurationEnglish(hours);
   };
 
+  const formatStatus = (status) => {
+    if (!status) return "Unknown";
+    return status.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
+  const getStatusBadgeStyle = (status) => {
+    const baseStyle = {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      marginLeft: 8,
+    };
+
+    switch (status) {
+      case "done":
+        return {
+          ...baseStyle,
+          backgroundColor: "#34C75920", // Green background for done
+        };
+      case "in_progress":
+        return {
+          ...baseStyle,
+          backgroundColor: "#FF950020", // Orange background for in progress
+        };
+      default:
+        return {
+          ...baseStyle,
+          backgroundColor: theme.colors.secondary + "20",
+        };
+    }
+  };
+
+  const getStatusTextStyle = (status) => {
+    const baseStyle = {
+      fontSize: 12,
+      fontWeight: "600",
+    };
+
+    switch (status) {
+      case "done":
+        return {
+          ...baseStyle,
+          color: "#34C759", // Green text for done
+        };
+      case "in_progress":
+        return {
+          ...baseStyle,
+          color: "#FF9500", // Orange text for in progress
+        };
+      default:
+        return {
+          ...baseStyle,
+          color: theme.colors.secondary,
+        };
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const year = date.getFullYear();
@@ -349,12 +420,13 @@ export default function TimeLogsScreen() {
       location={item.locations}
       duration={item.duration}
       deadline_at={item.deadline_at}
+      status={item.status}
       onEdit={() => handleEdit(item)}
       onDelete={() => handleDelete(item)}
       rightContent={
-        <View style={styles.durationBadge}>
-          <Text style={styles.durationText}>
-            {formatDuration(item.duration)}
+        <View style={getStatusBadgeStyle(item.status)}>
+          <Text style={getStatusTextStyle(item.status)}>
+            {formatStatus(item.status)}
           </Text>
         </View>
       }

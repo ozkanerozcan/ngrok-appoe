@@ -38,35 +38,71 @@ export default function DetailsScreen() {
     return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
+  // Helper function to format status
+  const formatStatus = (status) => {
+    if (!status) return "Unknown";
+    return status.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
   const [archivedLogs, setArchivedLogs] = useState([]);
   const [loadingArchives, setLoadingArchives] = useState(false);
   const [deleteArchiveModalVisible, setDeleteArchiveModalVisible] =
     useState(false);
   const [archiveToDelete, setArchiveToDelete] = useState(null);
   const [deletingArchive, setDeletingArchive] = useState(false);
-  const [markDoneModalVisible, setMarkDoneModalVisible] = useState(false);
-  const [markingDone, setMarkingDone] = useState(false);
+
+  // State for fetched time log data
+  const [timeLogData, setTimeLogData] = useState(null);
+  const [loadingTimeLog, setLoadingTimeLog] = useState(false);
 
   const {
     id,
-    title,
-    subtitle,
-    description,
+    title: titleParam,
+    subtitle: subtitleParam,
+    description: descriptionParam,
     created_by: createdByParam,
-    created_at,
+    created_at: createdAtParam,
     updated_by: updatedByParam,
-    updated_at,
+    updated_at: updatedAtParam,
     project: projectParam,
     location: locationParam,
-    duration,
-    deadline_at,
+    duration: durationParam,
+    deadline_at: deadlineAtParam,
+    status: statusParam,
   } = params;
 
-  // Parse JSON strings back to objects
-  const created_by = createdByParam ? JSON.parse(createdByParam) : null;
-  const updated_by = updatedByParam ? JSON.parse(updatedByParam) : null;
-  const project = projectParam ? JSON.parse(projectParam) : null;
-  const location = locationParam ? JSON.parse(locationParam) : null;
+  // Determine if we need to fetch data (only ID provided) or use params
+  const shouldFetchData = id && !titleParam && !descriptionParam;
+
+  // Use fetched data or params
+  const title = timeLogData?.title || titleParam;
+  const subtitle = timeLogData?.subtitle || subtitleParam;
+  const description = timeLogData?.description || descriptionParam;
+  const created_at = timeLogData?.created_at || createdAtParam;
+  const updated_at = timeLogData?.updated_at || updatedAtParam;
+  const duration = timeLogData?.duration || durationParam;
+  const deadline_at = timeLogData?.deadline_at || deadlineAtParam;
+  const status = timeLogData?.status || statusParam;
+
+  // Parse JSON strings back to objects or use fetched data
+  const created_by =
+    timeLogData?.created_by_profile ||
+    (createdByParam ? JSON.parse(createdByParam) : null);
+  const updated_by =
+    timeLogData?.updated_by_profile ||
+    (updatedByParam ? JSON.parse(updatedByParam) : null);
+  const project =
+    timeLogData?.projects || (projectParam ? JSON.parse(projectParam) : null);
+  const location =
+    timeLogData?.locations ||
+    (locationParam ? JSON.parse(locationParam) : null);
+
+  // Fetch time log data when component mounts
+  useEffect(() => {
+    if (id) {
+      loadTimeLogData();
+    }
+  }, [id]);
 
   // Fetch archived logs when component mounts or when returning to screen
   useEffect(() => {
@@ -75,14 +111,30 @@ export default function DetailsScreen() {
     }
   }, [id]);
 
-  // Refresh archive data when screen comes into focus (e.g., after editing)
+  // Refresh data when screen comes into focus (e.g., after editing)
   useFocusEffect(
     useCallback(() => {
       if (id) {
+        loadTimeLogData();
         loadArchivedLogs();
       }
     }, [id])
   );
+
+  const loadTimeLogData = async () => {
+    if (!id) return;
+
+    setLoadingTimeLog(true);
+    try {
+      const data = await timeLogService.getById(id);
+      setTimeLogData(data);
+    } catch (error) {
+      console.error("Error loading time log data:", error);
+      showToast("error", "Failed to load time log data");
+    } finally {
+      setLoadingTimeLog(false);
+    }
+  };
 
   const loadArchivedLogs = async () => {
     if (!id) return;
@@ -152,36 +204,46 @@ export default function DetailsScreen() {
     setArchiveToDelete(null);
   };
 
-  const handleMarkDone = () => {
-    setMarkDoneModalVisible(true);
-  };
-
-  const handleConfirmMarkDone = async () => {
+  const handleEdit = () => {
     if (!id) return;
 
-    setMarkingDone(true);
-    try {
-      // Mark the time log as done (status = "done")
-      await timeLogService.updateStatus(id, "done");
-      showToast("success", "Time log marked as done!");
-      setMarkDoneModalVisible(false);
-      // Navigate back to the time logs list
-      router.back();
-    } catch (error) {
-      console.error("Error updating time log status:", error);
-      showToast("error", "Failed to update time log status");
-    } finally {
-      setMarkingDone(false);
-    }
-  };
+    // Navigate to edit form with current time log data
+    const editData = {
+      id,
+      title,
+      subtitle,
+      description,
+      project: project ? JSON.stringify(project) : null,
+      location: location ? JSON.stringify(location) : null,
+      duration: duration ? duration.toString() : null,
+      deadline_at,
+      status,
+      created_by: created_by ? JSON.stringify(created_by) : null,
+      created_at,
+      updated_by: updated_by ? JSON.stringify(updated_by) : null,
+      updated_at,
+    };
 
-  const handleCancelMarkDone = () => {
-    setMarkDoneModalVisible(false);
+    // Convert data to URL parameters
+    const params = new URLSearchParams();
+    Object.keys(editData).forEach((key) => {
+      if (editData[key] !== null && editData[key] !== undefined) {
+        params.append(key, editData[key]);
+      }
+    });
+
+    router.push(`/timelogs/form?${params.toString()}`);
   };
 
   // Prepare data for FlatList
   const getFlatListData = () => {
     const data = [];
+
+    // Show loading if fetching time log data
+    if (loadingTimeLog) {
+      data.push({ type: "loading" });
+      return data;
+    }
 
     // Main content
     if (title) data.push({ type: "title", content: title });
@@ -197,7 +259,8 @@ export default function DetailsScreen() {
       project ||
       location ||
       duration ||
-      deadline_at
+      deadline_at ||
+      status
     ) {
       data.push({ type: "metadata" });
     }
@@ -222,6 +285,12 @@ export default function DetailsScreen() {
 
   const renderItem = ({ item }) => {
     switch (item.type) {
+      case "loading":
+        return (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading time log details...</Text>
+          </View>
+        );
       case "title":
         return <Text style={styles.title}>{item.content}</Text>;
       case "subtitle":
@@ -308,6 +377,13 @@ export default function DetailsScreen() {
                 <Text style={styles.metadataValue}>
                   {formatDateDDMMYYYY(deadline_at)}
                 </Text>
+              </View>
+            )}
+
+            {status && (
+              <View style={styles.metadataItem}>
+                <Text style={styles.metadataLabel}>Status:</Text>
+                <Text style={styles.metadataValue}>{formatStatus(status)}</Text>
               </View>
             )}
           </View>
@@ -521,15 +597,13 @@ export default function DetailsScreen() {
     },
     archiveSection: {
       marginTop: 32,
-      paddingTop: 20,
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
+      paddingTop: 8,
     },
     archiveTitle: {
       fontSize: 18,
       fontWeight: "600",
       color: theme.colors.text,
-      marginBottom: 16,
+      marginBottom: 2,
     },
     archiveItem: {
       backgroundColor: theme.colors.surface,
@@ -593,7 +667,7 @@ export default function DetailsScreen() {
       fontSize: 14,
       color: theme.colors.textSecondary,
       fontStyle: "italic",
-      marginTop: 8,
+      marginTop: 0,
     },
     archiveItemActions: {
       flexDirection: "row",
@@ -606,6 +680,16 @@ export default function DetailsScreen() {
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 40,
+    },
+    loadingText: {
+      color: theme.colors.textSecondary,
+      fontSize: 16,
     },
     iconContainer: {
       width: 64,
@@ -682,15 +766,8 @@ export default function DetailsScreen() {
 
           <Text style={styles.headerTitle}>Details</Text>
 
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleMarkDone}
-          >
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={20}
-              color={theme.colors.primary}
-            />
+          <TouchableOpacity style={styles.headerButton} onPress={handleEdit}>
+            <Ionicons name="pencil" size={20} color={theme.colors.primary} />
           </TouchableOpacity>
         </View>
 
@@ -702,70 +779,6 @@ export default function DetailsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         />
-
-        {/* Mark as Done Confirmation Modal */}
-        <Modal
-          visible={markDoneModalVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setMarkDoneModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, { maxWidth: 400 }]}>
-              <View style={styles.iconContainer}>
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={32}
-                  color={theme.colors.primary}
-                />
-              </View>
-
-              <Text style={styles.message}>Mark this time log as done?</Text>
-
-              <Text
-                style={[
-                  styles.message,
-                  {
-                    fontSize: 14,
-                    color: theme.colors.textSecondary,
-                    marginBottom: 24,
-                  },
-                ]}
-              >
-                This will mark the time log as completed and update its status.
-              </Text>
-
-              <View style={styles.buttonsContainer}>
-                <TouchableOpacity
-                  style={[styles.cancelButton, { flex: 1, marginRight: 6 }]}
-                  onPress={handleCancelMarkDone}
-                  disabled={markingDone}
-                >
-                  <Text
-                    style={[styles.buttonText, { color: theme.colors.text }]}
-                  >
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.confirmButton, { flex: 1, marginLeft: 6 }]}
-                  onPress={handleConfirmMarkDone}
-                  disabled={markingDone}
-                >
-                  <Text
-                    style={[
-                      styles.buttonText,
-                      { color: theme.colors.onPrimary },
-                    ]}
-                  >
-                    {markingDone ? "Updating..." : "Mark as Done"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
 
         {/* Delete Archive Confirmation Modal */}
         <Modal
