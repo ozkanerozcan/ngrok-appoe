@@ -199,7 +199,6 @@ export default function Card({
                     ? { id: id || undefined }
                     : {
                         id: id || undefined,
-                        title: title || undefined,
                         subtitle: subtitle || undefined,
                         description: description || undefined,
                         created_by: created_by

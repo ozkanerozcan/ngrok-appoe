@@ -1023,7 +1023,9 @@ export default function DashboardScreen() {
             <Text style={styles.recentTitle}>Recent Activity</Text>
             {dashboardData.recentLogs.map((log) => (
               <View key={log.id} style={styles.recentItem}>
-                <Text style={styles.recentItemTitle}>{log.title}</Text>
+                <Text style={styles.recentItemTitle}>
+                  {log.tasks ? log.tasks.title : "Time Log"}
+                </Text>
                 <Text style={styles.recentItemMeta}>
                   {formatDurationEnglish(log.duration)} •{" "}
                   {formatDate(log.updated_at || log.created_at)}

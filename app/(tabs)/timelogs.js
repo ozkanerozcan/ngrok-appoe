@@ -353,7 +353,6 @@ export default function TimeLogsScreen() {
   const renderTimeLog = ({ item }) => (
     <Card
       id={item.id}
-      title={item.title || ""}
       description={item.description || ""}
       created_at={item.created_at}
       updated_at={item.updated_at}
@@ -430,11 +429,10 @@ export default function TimeLogsScreen() {
       // Search text filter
       if (searchText.trim()) {
         const searchLower = searchText.toLowerCase();
-        const matchesTitle = log.title?.toLowerCase().includes(searchLower);
         const matchesDescription = log.description
           ?.toLowerCase()
           .includes(searchLower);
-        if (!matchesTitle && !matchesDescription) return false;
+        if (!matchesDescription) return false;
       }
 
       // Project filter
@@ -503,7 +501,7 @@ export default function TimeLogsScreen() {
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search title or description..."
+                placeholder="Search description..."
                 placeholderTextColor={theme.colors.textSecondary}
                 value={searchText}
                 onChangeText={setSearchText}
@@ -603,7 +601,6 @@ export default function TimeLogsScreen() {
         onConfirm={handleConfirmDelete}
         title="Delete Time Log"
         message="Are you sure you want to delete this time log?"
-        itemTitle={itemToDelete?.title}
         itemType="time log"
         loading={deleting}
       />

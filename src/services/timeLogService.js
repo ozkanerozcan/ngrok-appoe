@@ -91,12 +91,15 @@ export const timeLogService = {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
+    // Remove title from timeLogData since it's not in the database
+    const { title, ...cleanData } = timeLogData;
+
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from("time_logs")
       .insert([
         {
-          ...timeLogData,
+          ...cleanData,
           created_by: user.id,
           updated_by: user.id,
           created_at: now,
@@ -117,10 +120,13 @@ export const timeLogService = {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
+    // Remove title from timeLogData since it's not in the database
+    const { title, ...cleanData } = timeLogData;
+
     const { data, error } = await supabase
       .from("time_logs")
       .update({
-        ...timeLogData,
+        ...cleanData,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       })

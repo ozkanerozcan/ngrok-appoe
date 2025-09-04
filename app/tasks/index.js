@@ -541,7 +541,6 @@ export default function TaskDetailsScreen() {
         return (
           <Card
             id={timeLog.id}
-            title={timeLog.title || ""}
             description={timeLog.description || ""}
             created_at={timeLog.created_at}
             updated_at={timeLog.updated_at}
@@ -625,7 +624,6 @@ export default function TaskDetailsScreen() {
           onConfirm={handleConfirmDeleteTimeLog}
           title="Delete Time Log"
           message="Are you sure you want to delete this time log?"
-          itemTitle={itemToDelete?.title}
           itemType="time log"
           loading={deleting}
         />
