@@ -237,6 +237,11 @@ export default function TimeLogFormScreen() {
     return tasks.find((t) => t.id === formData.task);
   };
 
+  const getTaskDisplayName = (task) => {
+    if (!task) return "";
+    return task.title;
+  };
+
   const getFilteredLocations = () => {
     if (!locationSearch.trim()) {
       return locations;
@@ -250,9 +255,11 @@ export default function TimeLogFormScreen() {
     if (!taskSearch.trim()) {
       return tasks;
     }
-    return tasks.filter((task) =>
-      task.title.toLowerCase().includes(taskSearch.toLowerCase())
-    );
+    const searchLower = taskSearch.toLowerCase();
+    return tasks.filter((task) => {
+      const taskTitle = task.title.toLowerCase();
+      return taskTitle.includes(searchLower);
+    });
   };
 
   const styles = StyleSheet.create({
@@ -390,6 +397,7 @@ export default function TimeLogFormScreen() {
     },
     closeButton: {
       padding: 4,
+      marginRight: 8,
     },
     listContainer: {
       maxHeight: 300,
@@ -488,6 +496,22 @@ export default function TimeLogFormScreen() {
     },
     buttonText: {
       fontSize: 16,
+      fontWeight: "600",
+    },
+    clearTextButton: {
+      backgroundColor: "#EF444420", // Red background with transparency
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+      marginRight: 8,
+      borderWidth: 1,
+      borderColor: "#EF4444",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    clearTextButtonText: {
+      color: "#DC2626", // Darker red text
+      fontSize: 12,
       fontWeight: "600",
     },
   });
@@ -631,7 +655,9 @@ export default function TimeLogFormScreen() {
                   numberOfLines={1}
                   ellipsizeMode="tail"
                 >
-                  {selectedTask ? selectedTask.title : "Select a task"}
+                  {selectedTask
+                    ? getTaskDisplayName(selectedTask)
+                    : "Select a task"}
                 </Text>
                 <Ionicons
                   name="chevron-down"
@@ -688,19 +714,33 @@ export default function TimeLogFormScreen() {
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Location</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => {
-                    setLocationModalVisible(false);
-                    setLocationSearch("");
-                  }}
-                >
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={theme.colors.textSecondary}
-                  />
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row" }}>
+                  {formData.location && (
+                    <TouchableOpacity
+                      style={styles.clearTextButton}
+                      onPress={() => {
+                        setFormData({ ...formData, location: "" });
+                        setLocationSearch("");
+                        setLocationModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.clearTextButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => {
+                      setLocationModalVisible(false);
+                      setLocationSearch("");
+                    }}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <TextInput
@@ -774,19 +814,33 @@ export default function TimeLogFormScreen() {
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Task</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => {
-                    setTaskModalVisible(false);
-                    setTaskSearch("");
-                  }}
-                >
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={theme.colors.textSecondary}
-                  />
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row" }}>
+                  {formData.task && (
+                    <TouchableOpacity
+                      style={styles.clearTextButton}
+                      onPress={() => {
+                        setFormData({ ...formData, task: "" });
+                        setTaskSearch("");
+                        setTaskModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.clearTextButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => {
+                      setTaskModalVisible(false);
+                      setTaskSearch("");
+                    }}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <TextInput
@@ -807,6 +861,9 @@ export default function TimeLogFormScreen() {
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
                       const isSelected = item.id === formData.task;
+                      // Display only task title
+                      const displayName = item.title;
+
                       return (
                         <TouchableOpacity
                           style={[
@@ -825,7 +882,7 @@ export default function TimeLogFormScreen() {
                               isSelected && styles.selectedItemText,
                             ]}
                           >
-                            {item.title}
+                            {displayName}
                           </Text>
                         </TouchableOpacity>
                       );

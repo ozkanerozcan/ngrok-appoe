@@ -14,6 +14,8 @@ import {
   projectService,
   locationService,
   timeLogService,
+  activityService,
+  moduleService,
 } from "../../src/services";
 import {
   Card,
@@ -30,6 +32,8 @@ export default function ManageScreen() {
   const [activeTab, setActiveTab] = useState("projects");
   const [projects, setProjects] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [projectStats, setProjectStats] = useState({});
@@ -37,10 +41,18 @@ export default function ManageScreen() {
     useState(false);
   const [deleteLocationModalVisible, setDeleteLocationModalVisible] =
     useState(false);
+  const [deleteActivityModalVisible, setDeleteActivityModalVisible] =
+    useState(false);
+  const [deleteModuleModalVisible, setDeleteModuleModalVisible] =
+    useState(false);
   const [projectToDelete, setProjectToDelete] = useState(null);
   const [locationToDelete, setLocationToDelete] = useState(null);
+  const [activityToDelete, setActivityToDelete] = useState(null);
+  const [moduleToDelete, setModuleToDelete] = useState(null);
   const [deletingProject, setDeletingProject] = useState(false);
   const [deletingLocation, setDeletingLocation] = useState(false);
+  const [deletingActivity, setDeletingActivity] = useState(false);
+  const [deletingModule, setDeletingModule] = useState(false);
 
   const styles = StyleSheet.create({
     container: {
@@ -153,9 +165,19 @@ export default function ManageScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      // Load projects
-      const projectsData = await projectService.getAll();
+      // Load all data in parallel
+      const [projectsData, locationsData, activitiesData, modulesData] =
+        await Promise.all([
+          projectService.getAll(),
+          locationService.getAll(),
+          activityService.getAll(),
+          moduleService.getAll(),
+        ]);
+
       setProjects(projectsData);
+      setLocations(locationsData);
+      setActivities(activitiesData);
+      setModules(modulesData);
 
       // Load stats for each project
       const stats = {};
@@ -174,10 +196,6 @@ export default function ManageScreen() {
         }
       }
       setProjectStats(stats);
-
-      // Load locations
-      const locationsData = await locationService.getAll();
-      setLocations(locationsData);
     } catch (error) {
       console.error("Error loading data:", error);
       Toast.show({
@@ -205,8 +223,12 @@ export default function ManageScreen() {
   const handleAdd = () => {
     if (activeTab === "projects") {
       router.push("/projects/form");
-    } else {
+    } else if (activeTab === "locations") {
       router.push("/locations/form");
+    } else if (activeTab === "activities") {
+      router.push("/activities/form");
+    } else if (activeTab === "modules") {
+      router.push("/modules/form");
     }
   };
 
@@ -290,6 +312,86 @@ export default function ManageScreen() {
     setLocationToDelete(null);
   };
 
+  const handleEditActivity = (activity) => {
+    router.push(`/activities/form?id=${activity.id}`);
+  };
+
+  const handleEditModule = (module) => {
+    router.push(`/modules/form?id=${module.id}`);
+  };
+
+  const handleDeleteActivity = (activity) => {
+    setActivityToDelete(activity);
+    setDeleteActivityModalVisible(true);
+  };
+
+  const handleDeleteModule = (module) => {
+    setModuleToDelete(module);
+    setDeleteModuleModalVisible(true);
+  };
+
+  const handleConfirmDeleteActivity = async () => {
+    if (!activityToDelete) return;
+
+    setDeletingActivity(true);
+    try {
+      await activityService.delete(activityToDelete.id);
+      Toast.show({
+        type: "success",
+        text1: "Success",
+        text2: "Activity deleted successfully",
+      });
+      loadData();
+      setDeleteActivityModalVisible(false);
+      setActivityToDelete(null);
+    } catch (error) {
+      console.error("Error deleting activity:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to delete activity",
+      });
+    } finally {
+      setDeletingActivity(false);
+    }
+  };
+
+  const handleConfirmDeleteModule = async () => {
+    if (!moduleToDelete) return;
+
+    setDeletingModule(true);
+    try {
+      await moduleService.delete(moduleToDelete.id);
+      Toast.show({
+        type: "success",
+        text1: "Success",
+        text2: "Module deleted successfully",
+      });
+      loadData();
+      setDeleteModuleModalVisible(false);
+      setModuleToDelete(null);
+    } catch (error) {
+      console.error("Error deleting module:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to delete module",
+      });
+    } finally {
+      setDeletingModule(false);
+    }
+  };
+
+  const handleCancelDeleteActivity = () => {
+    setDeleteActivityModalVisible(false);
+    setActivityToDelete(null);
+  };
+
+  const handleCancelDeleteModule = () => {
+    setDeleteModuleModalVisible(false);
+    setModuleToDelete(null);
+  };
+
   const formatDuration = (hours) => {
     return formatDurationEnglish(hours);
   };
@@ -336,6 +438,28 @@ export default function ManageScreen() {
     />
   );
 
+  const renderActivity = ({ item }) => (
+    <Card
+      title={item.title}
+      description={item.description}
+      created_at={item.created_at}
+      updated_at={item.updated_at}
+      onEdit={() => handleEditActivity(item)}
+      onDelete={() => handleDeleteActivity(item)}
+    />
+  );
+
+  const renderModule = ({ item }) => (
+    <Card
+      title={item.title}
+      description={item.description}
+      created_at={item.created_at}
+      updated_at={item.updated_at}
+      onEdit={() => handleEditModule(item)}
+      onDelete={() => handleDeleteModule(item)}
+    />
+  );
+
   const renderEmptyProjects = () => (
     <View style={styles.emptyContainer}>
       <Ionicons
@@ -372,16 +496,96 @@ export default function ManageScreen() {
     </View>
   );
 
+  const renderEmptyActivities = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons
+        name="bulb-outline"
+        size={64}
+        color={theme.colors.textSecondary}
+        style={styles.emptyIcon}
+      />
+      <Text style={styles.emptyTitle}>No Activities Yet</Text>
+      <Text style={styles.emptyDescription}>
+        Create your first activity to organize your tasks
+      </Text>
+      <TouchableOpacity style={styles.emptyButton} onPress={handleAdd}>
+        <Text style={styles.emptyButtonText}>Add Activity</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderEmptyModules = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons
+        name="folder-outline"
+        size={64}
+        color={theme.colors.textSecondary}
+        style={styles.emptyIcon}
+      />
+      <Text style={styles.emptyTitle}>No Modules Yet</Text>
+      <Text style={styles.emptyDescription}>
+        Create your first module to categorize your tasks
+      </Text>
+      <TouchableOpacity style={styles.emptyButton} onPress={handleAdd}>
+        <Text style={styles.emptyButtonText}>Add Module</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (loading) {
     return (
       <LoadingScreen title="Loading data..." icon="grid-outline" size="small" />
     );
   }
 
-  const currentData = activeTab === "projects" ? projects : locations;
-  const renderItem = activeTab === "projects" ? renderProject : renderLocation;
-  const renderEmpty =
-    activeTab === "projects" ? renderEmptyProjects : renderEmptyLocations;
+  const getCurrentData = () => {
+    switch (activeTab) {
+      case "projects":
+        return projects;
+      case "locations":
+        return locations;
+      case "activities":
+        return activities;
+      case "modules":
+        return modules;
+      default:
+        return projects;
+    }
+  };
+
+  const getRenderItem = () => {
+    switch (activeTab) {
+      case "projects":
+        return renderProject;
+      case "locations":
+        return renderLocation;
+      case "activities":
+        return renderActivity;
+      case "modules":
+        return renderModule;
+      default:
+        return renderProject;
+    }
+  };
+
+  const getRenderEmpty = () => {
+    switch (activeTab) {
+      case "projects":
+        return renderEmptyProjects;
+      case "locations":
+        return renderEmptyLocations;
+      case "activities":
+        return renderEmptyActivities;
+      case "modules":
+        return renderEmptyModules;
+      default:
+        return renderEmptyProjects;
+    }
+  };
+
+  const currentData = getCurrentData();
+  const renderItem = getRenderItem();
+  const renderEmpty = getRenderEmpty();
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
@@ -430,6 +634,42 @@ export default function ManageScreen() {
             Locations
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === "activities" ? styles.activeTab : styles.inactiveTab,
+          ]}
+          onPress={() => setActiveTab("activities")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "activities"
+                ? styles.activeTabText
+                : styles.inactiveTabText,
+            ]}
+          >
+            Activities
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === "modules" ? styles.activeTab : styles.inactiveTab,
+          ]}
+          onPress={() => setActiveTab("modules")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "modules"
+                ? styles.activeTabText
+                : styles.inactiveTabText,
+            ]}
+          >
+            Modules
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.listContainer}>
@@ -469,6 +709,28 @@ export default function ManageScreen() {
         itemTitle={locationToDelete?.title}
         itemType="location"
         loading={deletingLocation}
+      />
+
+      <DeleteConfirmationModal
+        visible={deleteActivityModalVisible}
+        onClose={handleCancelDeleteActivity}
+        onConfirm={handleConfirmDeleteActivity}
+        title="Delete Activity"
+        message="Are you sure you want to delete this activity?"
+        itemTitle={activityToDelete?.title}
+        itemType="activity"
+        loading={deletingActivity}
+      />
+
+      <DeleteConfirmationModal
+        visible={deleteModuleModalVisible}
+        onClose={handleCancelDeleteModule}
+        onConfirm={handleConfirmDeleteModule}
+        title="Delete Module"
+        message="Are you sure you want to delete this module?"
+        itemTitle={moduleToDelete?.title}
+        itemType="module"
+        loading={deletingModule}
       />
     </SafeAreaView>
   );

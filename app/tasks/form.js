@@ -19,7 +19,12 @@ import {
 } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "../../src/contexts/ThemeContext";
-import { taskService, projectService } from "../../src/services";
+import {
+  taskService,
+  projectService,
+  activityService,
+  moduleService,
+} from "../../src/services";
 import { showToast } from "../../src/utils/toast";
 import ProtectedRoute from "../../src/components/ProtectedRoute";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,20 +39,26 @@ export default function TaskFormScreen() {
   const isEditing = !!id;
 
   const [formData, setFormData] = useState({
-    title: "",
     description: "",
     project: "",
+    activity: "",
+    module: "",
     deadline_at: null,
-    status: "pending",
+    status: null,
   });
   const [projects, setProjects] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [projectModalVisible, setProjectModalVisible] = useState(false);
+  const [activityModalVisible, setActivityModalVisible] = useState(false);
+  const [moduleModalVisible, setModuleModalVisible] = useState(false);
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
+  const [activitySearch, setActivitySearch] = useState("");
+  const [moduleSearch, setModuleSearch] = useState("");
   const scrollViewRef = useRef(null);
-  const titleInputRef = useRef(null);
   const descriptionInputRef = useRef(null);
   const [focusedInputRef, setFocusedInputRef] = useState(null);
 
@@ -90,8 +101,14 @@ export default function TaskFormScreen() {
 
   const loadData = async () => {
     try {
-      const projectsData = await projectService.getAll();
+      const [projectsData, activitiesData, modulesData] = await Promise.all([
+        projectService.getAll(),
+        activityService.getAll(),
+        moduleService.getAll(),
+      ]);
       setProjects(projectsData);
+      setActivities(activitiesData);
+      setModules(modulesData);
     } catch (error) {
       console.error("Error loading data:", error);
       showToast("error", "Failed to load data");
@@ -104,11 +121,12 @@ export default function TaskFormScreen() {
       const data = await taskService.getById(id);
 
       setFormData({
-        title: data.title || "",
         description: data.description || "",
         project: data.project || "",
+        activity: data.activity || "",
+        module: data.module || "",
         deadline_at: data.deadline_at || null,
-        status: data.status || "pending",
+        status: data.status || null,
       });
     } catch (error) {
       console.error("Error loading data:", error);
@@ -122,11 +140,6 @@ export default function TaskFormScreen() {
   const handleSave = async () => {
     console.log("handleSave called with formData:", formData);
 
-    if (!formData.title.trim()) {
-      showToast("error", "Please enter a title");
-      return;
-    }
-
     if (!formData.project) {
       showToast("error", "Please select a project");
       return;
@@ -137,12 +150,25 @@ export default function TaskFormScreen() {
       return;
     }
 
+    // Generate title automatically based on project-module-activity
+    const selectedProject = getSelectedProject();
+    const selectedActivity = getSelectedActivity();
+    const selectedModule = getSelectedModule();
+
+    const projectTitle = selectedProject ? selectedProject.title : "XXX";
+    const moduleTitle = selectedModule ? selectedModule.title : "XXX";
+    const activityTitle = selectedActivity ? selectedActivity.title : "XXX";
+
+    const generatedTitle = `${projectTitle}-${moduleTitle}-${activityTitle}`;
+
     const submitData = {
-      title: formData.title.trim(),
+      title: generatedTitle,
       description: formData.description || "",
       project: formData.project,
+      activity: formData.activity || null,
+      module: formData.module || null,
       deadline_at: formData.deadline_at,
-      status: formData.status,
+      status: formData.status || null,
     };
 
     console.log("Submit data:", submitData);
@@ -169,12 +195,38 @@ export default function TaskFormScreen() {
     return projects.find((p) => p.id === formData.project);
   };
 
+  const getSelectedActivity = () => {
+    return activities.find((a) => a.id === formData.activity);
+  };
+
+  const getSelectedModule = () => {
+    return modules.find((m) => m.id === formData.module);
+  };
+
   const getFilteredProjects = () => {
     if (!projectSearch.trim()) {
       return projects;
     }
     return projects.filter((project) =>
       project.title.toLowerCase().includes(projectSearch.toLowerCase())
+    );
+  };
+
+  const getFilteredActivities = () => {
+    if (!activitySearch.trim()) {
+      return activities;
+    }
+    return activities.filter((activity) =>
+      activity.title.toLowerCase().includes(activitySearch.toLowerCase())
+    );
+  };
+
+  const getFilteredModules = () => {
+    if (!moduleSearch.trim()) {
+      return modules;
+    }
+    return modules.filter((module) =>
+      module.title.toLowerCase().includes(moduleSearch.toLowerCase())
     );
   };
 
@@ -314,6 +366,26 @@ export default function TaskFormScreen() {
     closeButton: {
       padding: 4,
     },
+    clearButton: {
+      padding: 4,
+      marginRight: 8,
+    },
+    clearTextButton: {
+      backgroundColor: "#EF444420", // Red background with transparency
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+      marginRight: 8,
+      borderWidth: 1,
+      borderColor: "#EF4444",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    clearTextButtonText: {
+      color: "#DC2626", // Darker red text
+      fontSize: 12,
+      fontWeight: "600",
+    },
     listContainer: {
       maxHeight: 300,
     },
@@ -433,28 +505,6 @@ export default function TaskFormScreen() {
           >
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Title <Text style={styles.required}>*</Text>
-              </Text>
-              <TextInput
-                ref={titleInputRef}
-                style={[styles.input, styles.truncatedInput]}
-                placeholder="Enter task title..."
-                placeholderTextColor={theme.colors.textSecondary}
-                value={formData.title}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, title: text })
-                }
-                returnKeyType="next"
-                blurOnSubmit={false}
-                ellipsizeMode="tail"
-                numberOfLines={1}
-                maxLength={100}
-                onFocus={() => scrollToInput(titleInputRef)}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
                 Project <Text style={styles.required}>*</Text>
               </Text>
               <TouchableOpacity
@@ -470,6 +520,58 @@ export default function TaskFormScreen() {
                   ellipsizeMode="tail"
                 >
                   {selectedProject ? selectedProject.title : "Select a project"}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Activity (Optional)</Text>
+              <TouchableOpacity
+                style={styles.picker}
+                onPress={() => setActivityModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.pickerText,
+                    !getSelectedActivity() && styles.pickerPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {getSelectedActivity()
+                    ? getSelectedActivity().title
+                    : "Select an activity"}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Module (Optional)</Text>
+              <TouchableOpacity
+                style={styles.picker}
+                onPress={() => setModuleModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.pickerText,
+                    !getSelectedModule() && styles.pickerPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {getSelectedModule()
+                    ? getSelectedModule().title
+                    : "Select a module"}
                 </Text>
                 <Ionicons
                   name="chevron-down"
@@ -556,19 +658,33 @@ export default function TaskFormScreen() {
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Project</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => {
-                    setProjectModalVisible(false);
-                    setProjectSearch("");
-                  }}
-                >
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={theme.colors.textSecondary}
-                  />
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row" }}>
+                  {formData.project && (
+                    <TouchableOpacity
+                      style={styles.clearTextButton}
+                      onPress={() => {
+                        setFormData({ ...formData, project: "" });
+                        setProjectSearch("");
+                        setProjectModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.clearTextButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => {
+                      setProjectModalVisible(false);
+                      setProjectSearch("");
+                    }}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <TextInput
@@ -628,6 +744,206 @@ export default function TaskFormScreen() {
           </View>
         </Modal>
 
+        {/* Activity Selection Modal */}
+        <Modal
+          visible={activityModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setActivityModalVisible(false);
+            setActivitySearch("");
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Activity</Text>
+                <View style={{ flexDirection: "row" }}>
+                  {formData.activity && (
+                    <TouchableOpacity
+                      style={styles.clearTextButton}
+                      onPress={() => {
+                        setFormData({ ...formData, activity: "" });
+                        setActivitySearch("");
+                        setActivityModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.clearTextButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => {
+                      setActivityModalVisible(false);
+                      setActivitySearch("");
+                    }}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search activities..."
+                placeholderTextColor={theme.colors.textSecondary}
+                value={activitySearch}
+                onChangeText={setActivitySearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+                ellipsizeMode="tail"
+              />
+
+              <View style={styles.listContainer}>
+                {getFilteredActivities().length > 0 ? (
+                  <FlatList
+                    data={getFilteredActivities()}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => {
+                      const isSelected = item.id === formData.activity;
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            styles.item,
+                            isSelected && styles.selectedItem,
+                          ]}
+                          onPress={() => {
+                            setFormData({ ...formData, activity: item.id });
+                            setActivityModalVisible(false);
+                            setActivitySearch("");
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.itemText,
+                              isSelected && styles.selectedItemText,
+                            ]}
+                          >
+                            {item.title}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }}
+                    showsVerticalScrollIndicator={false}
+                  />
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>
+                      {activitySearch.trim()
+                        ? "No activities found matching your search"
+                        : "No activities available"}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Module Selection Modal */}
+        <Modal
+          visible={moduleModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setModuleModalVisible(false);
+            setModuleSearch("");
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Module</Text>
+                <View style={{ flexDirection: "row" }}>
+                  {formData.module && (
+                    <TouchableOpacity
+                      style={styles.clearTextButton}
+                      onPress={() => {
+                        setFormData({ ...formData, module: "" });
+                        setModuleSearch("");
+                        setModuleModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.clearTextButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => {
+                      setModuleModalVisible(false);
+                      setModuleSearch("");
+                    }}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search modules..."
+                placeholderTextColor={theme.colors.textSecondary}
+                value={moduleSearch}
+                onChangeText={setModuleSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+                ellipsizeMode="tail"
+              />
+
+              <View style={styles.listContainer}>
+                {getFilteredModules().length > 0 ? (
+                  <FlatList
+                    data={getFilteredModules()}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => {
+                      const isSelected = item.id === formData.module;
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            styles.item,
+                            isSelected && styles.selectedItem,
+                          ]}
+                          onPress={() => {
+                            setFormData({ ...formData, module: item.id });
+                            setModuleModalVisible(false);
+                            setModuleSearch("");
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.itemText,
+                              isSelected && styles.selectedItemText,
+                            ]}
+                          >
+                            {item.title}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }}
+                    showsVerticalScrollIndicator={false}
+                  />
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>
+                      {moduleSearch.trim()
+                        ? "No modules found matching your search"
+                        : "No modules available"}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         {/* Status Selection Modal */}
         <Modal
           visible={statusModalVisible}
@@ -639,16 +955,29 @@ export default function TaskFormScreen() {
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Status</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => setStatusModalVisible(false)}
-                >
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={theme.colors.textSecondary}
-                  />
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row" }}>
+                  {formData.status && (
+                    <TouchableOpacity
+                      style={styles.clearTextButton}
+                      onPress={() => {
+                        setFormData({ ...formData, status: null });
+                        setStatusModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.clearTextButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => setStatusModalVisible(false)}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.listContainer}>

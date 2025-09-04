@@ -10,7 +10,23 @@ export const taskService = {
 
     const { data, error } = await supabase
       .from("tasks")
-      .select("*")
+      .select(
+        `
+        *,
+        projects!tasks_project_fkey (
+          id,
+          title
+        ),
+        activities:activity (
+          id,
+          title
+        ),
+        modules:module (
+          id,
+          title
+        )
+      `
+      )
       .eq("created_by", user.id)
       .order("deadline_at", { ascending: true })
       .order("created_at", { ascending: false });
@@ -35,7 +51,15 @@ export const taskService = {
       .select(
         `
         *,
-        projects:project (
+        projects!tasks_project_fkey (
+          id,
+          title
+        ),
+        activities:activity (
+          id,
+          title
+        ),
+        modules:module (
           id,
           title
         )
@@ -109,7 +133,7 @@ export const taskService = {
       .insert([
         {
           ...cleanedTaskData,
-          status: taskData.status || "pending",
+          status: taskData.status || null,
           created_by: user.id,
           updated_by: user.id,
         },
@@ -136,9 +160,10 @@ export const taskService = {
     const cleanedTaskData = {};
     Object.keys(taskData).forEach((key) => {
       if (
-        taskData[key] &&
-        taskData[key] !== "undefined" &&
-        taskData[key] !== "null"
+        (taskData[key] !== undefined &&
+          taskData[key] !== "undefined" &&
+          taskData[key] !== "null") ||
+        (key === "status" && taskData[key] === null)
       ) {
         cleanedTaskData[key] = taskData[key];
       }
