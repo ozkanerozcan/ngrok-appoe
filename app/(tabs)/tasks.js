@@ -12,11 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/contexts/ThemeContext";
-import {
-  timeLogService,
-  projectService,
-  locationService,
-} from "../../src/services";
+import { taskService, projectService } from "../../src/services";
 import {
   Card,
   LoadingScreen,
@@ -26,12 +22,11 @@ import {
 } from "../../src/components/ui";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import { formatDurationEnglish } from "../../src/utils/duration";
 
-export default function TimeLogsScreen() {
+export default function TasksScreen() {
   const router = useRouter();
   const { theme } = useTheme();
-  const [timeLogs, setTimeLogs] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -40,9 +35,7 @@ export default function TimeLogsScreen() {
 
   // Filter states
   const [projects, setProjects] = useState([]);
-  const [locations, setLocations] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
-  const [selectedLocations, setSelectedLocations] = useState([]);
   const [selectedUpdatedBy, setSelectedUpdatedBy] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -115,7 +108,7 @@ export default function TimeLogsScreen() {
       fontSize: 16,
       fontWeight: "600",
     },
-    timeLogMeta: {
+    taskMeta: {
       flexDirection: "row",
       alignItems: "center",
       marginTop: 8,
@@ -131,18 +124,6 @@ export default function TimeLogsScreen() {
       fontSize: 12,
       color: theme.colors.textSecondary,
       marginLeft: 4,
-    },
-    durationBadge: {
-      backgroundColor: theme.colors.primary + "20",
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-      marginLeft: 8,
-    },
-    durationText: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: theme.colors.primary,
     },
     statusBadge: {
       paddingHorizontal: 8,
@@ -255,18 +236,16 @@ export default function TimeLogsScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [timeLogsData, projectsData, locationsData] = await Promise.all([
-        timeLogService.getAll(),
+      const [tasksData, projectsData] = await Promise.all([
+        taskService.getAll(),
         projectService.getAll(),
-        locationService.getAll(),
       ]);
-      setTimeLogs(
-        timeLogsData.sort(
+      setTasks(
+        tasksData.sort(
           (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
         )
       );
       setProjects(projectsData);
-      setLocations(locationsData);
     } catch (error) {
       console.error("Error loading data:", error);
       Toast.show({
@@ -292,15 +271,21 @@ export default function TimeLogsScreen() {
   }, [loadData]);
 
   const handleAdd = () => {
-    router.push("/timelogs/form");
+    router.push("/tasks/form");
   };
 
-  const handleEdit = (timeLog) => {
-    router.push(`/timelogs/form?id=${timeLog.id}`);
+  const handleView = (task) => {
+    if (task && task.id) {
+      router.push(`/tasks?id=${task.id}`);
+    }
   };
 
-  const handleDelete = (timeLog) => {
-    setItemToDelete(timeLog);
+  const handleEdit = (task) => {
+    router.push(`/tasks/form?id=${task.id}`);
+  };
+
+  const handleDelete = (task) => {
+    setItemToDelete(task);
     setDeleteModalVisible(true);
   };
 
@@ -309,21 +294,21 @@ export default function TimeLogsScreen() {
 
     setDeleting(true);
     try {
-      await timeLogService.delete(itemToDelete.id);
+      await taskService.delete(itemToDelete.id);
       Toast.show({
         type: "success",
         text1: "Success",
-        text2: "Time log deleted successfully",
+        text2: "Task deleted successfully",
       });
       loadData();
       setDeleteModalVisible(false);
       setItemToDelete(null);
     } catch (error) {
-      console.error("Error deleting time log:", error);
+      console.error("Error deleting task:", error);
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Failed to delete time log",
+        text2: "Failed to delete task",
       });
     } finally {
       setDeleting(false);
@@ -335,8 +320,71 @@ export default function TimeLogsScreen() {
     setItemToDelete(null);
   };
 
-  const formatDuration = (hours) => {
-    return formatDurationEnglish(hours);
+  const formatStatus = (status) => {
+    if (!status) return "Unknown";
+    return status.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
+  const getStatusBadgeStyle = (status) => {
+    const baseStyle = {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      marginLeft: 8,
+    };
+
+    switch (status) {
+      case "done":
+        return {
+          ...baseStyle,
+          backgroundColor: "#34C75920", // Green background for done
+        };
+      case "in_progress":
+        return {
+          ...baseStyle,
+          backgroundColor: "#FF950020", // Orange background for in progress
+        };
+      case "pending":
+        return {
+          ...baseStyle,
+          backgroundColor: "#FF3B3020", // Red background for pending
+        };
+      default:
+        return {
+          ...baseStyle,
+          backgroundColor: theme.colors.secondary + "20",
+        };
+    }
+  };
+
+  const getStatusTextStyle = (status) => {
+    const baseStyle = {
+      fontSize: 12,
+      fontWeight: "600",
+    };
+
+    switch (status) {
+      case "done":
+        return {
+          ...baseStyle,
+          color: "#34C759", // Green text for done
+        };
+      case "in_progress":
+        return {
+          ...baseStyle,
+          color: "#FF9500", // Orange text for in progress
+        };
+      case "pending":
+        return {
+          ...baseStyle,
+          color: "#FF3B30", // Red text for pending
+        };
+      default:
+        return {
+          ...baseStyle,
+          color: theme.colors.secondary,
+        };
+    }
   };
 
   const formatDate = (dateString) => {
@@ -350,24 +398,24 @@ export default function TimeLogsScreen() {
     return `${year}-${month}-${day} ${hours}:${minutes}`;
   };
 
-  const renderTimeLog = ({ item }) => (
+  const renderTask = ({ item }) => (
     <Card
       id={item.id}
       title={item.title || ""}
       description={item.description || ""}
       created_at={item.created_at}
       updated_at={item.updated_at}
-      duration={item.duration}
+      deadline_at={item.deadline_at}
+      status={item.status}
+      onPress={() => handleView(item)}
       onEdit={() => handleEdit(item)}
       onDelete={() => handleDelete(item)}
       rightContent={
-        item.duration ? (
-          <View style={styles.durationBadge}>
-            <Text style={styles.durationText}>
-              {formatDuration(item.duration)}
-            </Text>
-          </View>
-        ) : null
+        <View style={getStatusBadgeStyle(item.status)}>
+          <Text style={getStatusTextStyle(item.status)}>
+            {formatStatus(item.status)}
+          </Text>
+        </View>
       }
     />
   );
@@ -375,7 +423,6 @@ export default function TimeLogsScreen() {
   const renderEmpty = () => {
     const hasFilters =
       selectedProjects.length > 0 ||
-      selectedLocations.length > 0 ||
       selectedUpdatedBy.length > 0 ||
       (dateFrom && dateFrom.trim()) ||
       (dateTo && dateTo.trim()) ||
@@ -384,22 +431,22 @@ export default function TimeLogsScreen() {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons
-          name="time-outline"
+          name="clipboard-outline"
           size={64}
           color={theme.colors.textSecondary}
           style={styles.emptyIcon}
         />
         <Text style={styles.emptyTitle}>
-          {hasFilters ? "No Time Logs Match Filters" : "No Time Logs Yet"}
+          {hasFilters ? "No Tasks Match Filters" : "No Tasks Yet"}
         </Text>
         <Text style={styles.emptyDescription}>
           {hasFilters
             ? "Try adjusting your filters to see more results"
-            : "Start tracking your time by creating your first time log"}
+            : "Start managing your tasks by creating your first task"}
         </Text>
         {!hasFilters && (
           <TouchableOpacity style={styles.emptyButton} onPress={handleAdd}>
-            <Text style={styles.emptyButtonText}>Add Time Log</Text>
+            <Text style={styles.emptyButtonText}>Add Task</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -409,8 +456,8 @@ export default function TimeLogsScreen() {
   if (loading) {
     return (
       <LoadingScreen
-        title="Loading time logs..."
-        icon="time-outline"
+        title="Loading tasks..."
+        icon="clipboard-outline"
         size="small"
       />
     );
@@ -418,67 +465,66 @@ export default function TimeLogsScreen() {
 
   const clearFilters = () => {
     setSelectedProjects([]);
-    setSelectedLocations([]);
     setSelectedUpdatedBy([]);
     setDateFrom(null);
     setDateTo(null);
     setSearchText("");
   };
 
-  const filteredTimeLogs = timeLogs
-    .filter((log) => {
-      // Search text filter
-      if (searchText.trim()) {
-        const searchLower = searchText.toLowerCase();
-        const matchesTitle = log.title?.toLowerCase().includes(searchLower);
-        const matchesDescription = log.description
-          ?.toLowerCase()
-          .includes(searchLower);
-        if (!matchesTitle && !matchesDescription) return false;
-      }
+  const filteredTasks = tasks.filter((task) => {
+    // Search text filter
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase();
+      const matchesTitle = task.title?.toLowerCase().includes(searchLower);
+      const matchesDescription = task.description
+        ?.toLowerCase()
+        .includes(searchLower);
+      if (!matchesTitle && !matchesDescription) return false;
+    }
 
-      // Project filter
-      if (
-        selectedProjects.length > 0 &&
-        !selectedProjects.includes(log.project)
-      ) {
-        return false;
-      }
+    // Project filter
+    if (
+      selectedProjects.length > 0 &&
+      task.project &&
+      !selectedProjects.includes(task.project)
+    ) {
+      return false;
+    }
 
-      // Location filter
-      if (
-        selectedLocations.length > 0 &&
-        !selectedLocations.includes(log.location)
-      ) {
-        return false;
-      }
+    // Updated by filter
+    if (
+      selectedUpdatedBy.length > 0 &&
+      task.updated_by &&
+      !selectedUpdatedBy.includes(task.updated_by)
+    ) {
+      return false;
+    }
 
-      // Updated by filter
-      if (
-        selectedUpdatedBy.length > 0 &&
-        !selectedUpdatedBy.includes(log.updated_by)
-      ) {
-        return false;
-      }
+    // Date from filter
+    if (
+      dateFrom &&
+      task.updated_at &&
+      new Date(task.updated_at) < new Date(dateFrom)
+    ) {
+      return false;
+    }
 
-      // Date from filter
-      if (dateFrom && new Date(log.updated_at) < new Date(dateFrom)) {
-        return false;
-      }
+    // Date to filter
+    if (
+      dateTo &&
+      task.updated_at &&
+      new Date(task.updated_at) > new Date(dateTo + "T23:59:59")
+    ) {
+      return false;
+    }
 
-      // Date to filter
-      if (dateTo && new Date(log.updated_at) > new Date(dateTo + "T23:59:59")) {
-        return false;
-      }
-
-      return true;
-    })
-    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    return true;
+  });
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Time Logs</Text>
+        <Text style={styles.title}>Tasks</Text>
         <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
           <Ionicons name="add" size={20} color={theme.colors.onPrimary} />
           <Text style={styles.addButtonText}>Add</Text>
@@ -562,14 +608,6 @@ export default function TimeLogsScreen() {
               searchable
             />
 
-            <MultiSelectPicker
-              value={selectedLocations}
-              onValueChange={setSelectedLocations}
-              items={locations}
-              placeholder="Select locations"
-              searchable
-            />
-
             <TouchableOpacity
               style={styles.clearFiltersButton}
               onPress={clearFilters}
@@ -582,8 +620,8 @@ export default function TimeLogsScreen() {
 
       <View style={styles.listContainer}>
         <FlatList
-          data={filteredTimeLogs}
-          renderItem={renderTimeLog}
+          data={filteredTasks}
+          renderItem={renderTask}
           keyExtractor={(item) => item.id}
           ListEmptyComponent={renderEmpty}
           refreshControl={
@@ -601,10 +639,10 @@ export default function TimeLogsScreen() {
         visible={deleteModalVisible}
         onClose={handleCancelDelete}
         onConfirm={handleConfirmDelete}
-        title="Delete Time Log"
-        message="Are you sure you want to delete this time log?"
+        title="Delete Task"
+        message="Are you sure you want to delete this task?"
         itemTitle={itemToDelete?.title}
-        itemType="time log"
+        itemType="task"
         loading={deleting}
       />
     </SafeAreaView>

@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 
-export const timeLogService = {
-  // Get all time logs for the current user with related project and location data
+export const taskService = {
+  // Get all tasks for the current user with related project data
   async getAll() {
     const {
       data: { user },
@@ -9,32 +9,33 @@ export const timeLogService = {
     if (!user) throw new Error("User not authenticated");
 
     const { data, error } = await supabase
-      .from("time_logs")
+      .from("tasks")
       .select("*")
       .eq("created_by", user.id)
-      .order("updated_at", { ascending: false });
+      .order("deadline_at", { ascending: true })
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
     return data;
   },
 
-  // Get a single time log by ID with related data
+  // Get a single task by ID with related data
   async getById(id) {
+    if (!id || id === "undefined" || id === "null") {
+      throw new Error("Invalid task ID provided");
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
     const { data, error } = await supabase
-      .from("time_logs")
+      .from("tasks")
       .select(
         `
         *,
-        tasks:task (
-          id,
-          title
-        ),
-        locations:location (
+        projects:project (
           id,
           title
         )
@@ -45,7 +46,7 @@ export const timeLogService = {
       .maybeSingle();
 
     if (error) throw error;
-    if (!data) throw new Error("Time log not found");
+    if (!data) throw new Error("Task not found");
 
     // Get current user info to show proper names
     const { data: currentUser } = await supabase.auth.getUser();
@@ -84,23 +85,33 @@ export const timeLogService = {
     };
   },
 
-  // Create a new time log
-  async create(timeLogData) {
+  // Create a new task
+  async create(taskData) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
-    const now = new Date().toISOString();
+    // Clean up taskData to avoid passing "undefined" strings to UUID fields
+    const cleanedTaskData = {};
+    Object.keys(taskData).forEach((key) => {
+      if (
+        taskData[key] &&
+        taskData[key] !== "undefined" &&
+        taskData[key] !== "null"
+      ) {
+        cleanedTaskData[key] = taskData[key];
+      }
+    });
+
     const { data, error } = await supabase
-      .from("time_logs")
+      .from("tasks")
       .insert([
         {
-          ...timeLogData,
+          ...cleanedTaskData,
+          status: taskData.status || "pending",
           created_by: user.id,
           updated_by: user.id,
-          created_at: now,
-          updated_at: now,
         },
       ])
       .select("*")
@@ -110,17 +121,33 @@ export const timeLogService = {
     return data;
   },
 
-  // Update an existing time log
-  async update(id, timeLogData, shouldArchive = false) {
+  // Update an existing task
+  async update(id, taskData) {
+    if (!id || id === "undefined" || id === "null") {
+      throw new Error("Invalid task ID provided");
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
+    // Clean up taskData to avoid passing "undefined" strings to UUID fields
+    const cleanedTaskData = {};
+    Object.keys(taskData).forEach((key) => {
+      if (
+        taskData[key] &&
+        taskData[key] !== "undefined" &&
+        taskData[key] !== "null"
+      ) {
+        cleanedTaskData[key] = taskData[key];
+      }
+    });
+
     const { data, error } = await supabase
-      .from("time_logs")
+      .from("tasks")
       .update({
-        ...timeLogData,
+        ...cleanedTaskData,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       })
@@ -133,15 +160,46 @@ export const timeLogService = {
     return data;
   },
 
-  // Delete a time log
+  // Update task status
+  async updateStatus(id, status) {
+    if (!id || id === "undefined" || id === "null") {
+      throw new Error("Invalid task ID provided");
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({
+        status: status,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Delete a task
   async delete(id) {
+    if (!id || id === "undefined" || id === "null") {
+      throw new Error("Invalid task ID provided");
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
     const { error } = await supabase
-      .from("time_logs")
+      .from("tasks")
       .delete()
       .eq("id", id)
       .eq("created_by", user.id);
@@ -150,98 +208,31 @@ export const timeLogService = {
     return true;
   },
 
-  // Get time logs filtered by project (via tasks)
+  // Get tasks filtered by project
   async getByProject(projectId) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("User not authenticated");
 
-    // First get tasks for this project
-    const { data: tasks, error: tasksError } = await supabase
-      .from("tasks")
-      .select("id")
-      .eq("created_by", user.id)
-      .eq("project", projectId);
-
-    if (tasksError) throw tasksError;
-
-    if (!tasks || tasks.length === 0) {
-      return []; // No tasks for this project
-    }
-
-    const taskIds = tasks.map((task) => task.id);
-
-    // Get time logs for these tasks
     const { data, error } = await supabase
-      .from("time_logs")
+      .from("tasks")
       .select("*")
       .eq("created_by", user.id)
-      .in("task", taskIds)
-      .order("updated_at", { ascending: false });
+      .eq("project", projectId)
+      .order("deadline_at", { ascending: true })
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
     return data;
   },
 
-  // Get time logs filtered by location
-  async getByLocation(locationId) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
-
-    const { data, error } = await supabase
-      .from("time_logs")
-      .select("*")
-      .eq("created_by", user.id)
-      .eq("location", locationId)
-      .order("updated_at", { ascending: false });
-
-    if (error) throw error;
-    return data;
-  },
-
-  // Get total duration for a project (via tasks)
-  async getTotalDurationByProject(projectId) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
-
-    // First get tasks for this project
-    const { data: tasks, error: tasksError } = await supabase
-      .from("tasks")
-      .select("id")
-      .eq("created_by", user.id)
-      .eq("project", projectId);
-
-    if (tasksError) throw tasksError;
-
-    if (!tasks || tasks.length === 0) {
-      return 0; // No tasks for this project
+  // Get time logs for a specific task
+  async getTimeLogs(taskId) {
+    if (!taskId || taskId === "undefined" || taskId === "null") {
+      return []; // Return empty array for invalid task IDs
     }
 
-    const taskIds = tasks.map((task) => task.id);
-
-    // Get time logs for these tasks
-    const { data, error } = await supabase
-      .from("time_logs")
-      .select("duration")
-      .eq("created_by", user.id)
-      .in("task", taskIds);
-
-    if (error) throw error;
-
-    const totalDuration = data.reduce(
-      (sum, log) => sum + (log.duration || 0),
-      0
-    );
-    return totalDuration;
-  },
-
-  // Get time logs filtered by task
-  async getByTask(taskId) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -252,9 +243,31 @@ export const timeLogService = {
       .select("*")
       .eq("created_by", user.id)
       .eq("task", taskId)
-      .order("updated_at", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
     return data;
+  },
+
+  // Get total duration for a task
+  async getTotalDuration(taskId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
+    const { data, error } = await supabase
+      .from("time_logs")
+      .select("duration")
+      .eq("created_by", user.id)
+      .eq("task", taskId);
+
+    if (error) throw error;
+
+    const totalDuration = data.reduce(
+      (sum, log) => sum + (log.duration || 0),
+      0
+    );
+    return totalDuration;
   },
 };

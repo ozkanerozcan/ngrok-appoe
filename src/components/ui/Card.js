@@ -13,6 +13,7 @@ export default function Card({
   onEdit,
   onDelete,
   rightContent,
+  topRightContent,
   children,
   style,
   // New metadata props
@@ -56,6 +57,10 @@ export default function Card({
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
+      marginBottom: 8,
+    },
+    topRightContainer: {
+      alignItems: "flex-end",
       marginBottom: 8,
     },
     content: {
@@ -143,15 +148,18 @@ export default function Card({
 
   const CardContent = (
     <View style={[styles.card, style]} {...props}>
+      {topRightContent && (
+        <View style={styles.topRightContainer}>{topRightContent}</View>
+      )}
       <View style={styles.header}>
         <View style={styles.content}>
-          {title && (
+          {title ? (
             <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
               {title}
             </Text>
-          )}
-          {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
-          {description && (
+          ) : null}
+          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          {description ? (
             <Text
               style={styles.description}
               numberOfLines={3}
@@ -159,7 +167,7 @@ export default function Card({
             >
               {description}
             </Text>
-          )}
+          ) : null}
           {children}
         </View>
         {rightContent && (
@@ -180,23 +188,38 @@ export default function Card({
             <TouchableOpacity
               style={styles.detailsButton}
               onPress={() => {
+                // Check if this is a task (has deadline_at) or time log
+                const isTask =
+                  deadline_at !== undefined && deadline_at !== null;
+                const targetPath = isTask ? "/tasks" : "/details";
+
                 router.push({
-                  pathname: "/details",
-                  params: {
-                    id,
-                    title,
-                    subtitle,
-                    description,
-                    created_by: created_by ? JSON.stringify(created_by) : null,
-                    created_at,
-                    updated_by: updated_by ? JSON.stringify(updated_by) : null,
-                    updated_at,
-                    project: project ? JSON.stringify(project) : null,
-                    location: location ? JSON.stringify(location) : null,
-                    duration: duration ? duration.toString() : null,
-                    deadline_at: deadline_at ? deadline_at.toString() : null,
-                    status,
-                  },
+                  pathname: targetPath,
+                  params: isTask
+                    ? { id: id || undefined }
+                    : {
+                        id: id || undefined,
+                        title: title || undefined,
+                        subtitle: subtitle || undefined,
+                        description: description || undefined,
+                        created_by: created_by
+                          ? JSON.stringify(created_by)
+                          : undefined,
+                        created_at: created_at || undefined,
+                        updated_by: updated_by
+                          ? JSON.stringify(updated_by)
+                          : undefined,
+                        updated_at: updated_at || undefined,
+                        project: project ? JSON.stringify(project) : undefined,
+                        location: location
+                          ? JSON.stringify(location)
+                          : undefined,
+                        duration: duration ? duration.toString() : undefined,
+                        deadline_at: deadline_at
+                          ? deadline_at.toString()
+                          : undefined,
+                        status: status || undefined,
+                      },
                 });
               }}
             >
@@ -210,34 +233,24 @@ export default function Card({
           )}
         </View>
         <View style={styles.rightActions}>
-          {/* Only show edit/delete buttons if user is the creator */}
-          {user && created_by && user.id === created_by.id && (
-            <>
-              {onEdit && (
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.editButton]}
-                  onPress={onEdit}
-                >
-                  <Ionicons
-                    name="pencil"
-                    size={16}
-                    color={theme.colors.primary}
-                  />
-                  <Text style={[styles.actionText, styles.editText]}>Edit</Text>
-                </TouchableOpacity>
-              )}
-              {onDelete && (
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.deleteButton]}
-                  onPress={onDelete}
-                >
-                  <Ionicons name="trash" size={16} color={theme.colors.error} />
-                  <Text style={[styles.actionText, styles.deleteText]}>
-                    Delete
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </>
+          {/* Show edit/delete buttons for all items since we're not getting user profile data */}
+          {onEdit && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.editButton]}
+              onPress={onEdit}
+            >
+              <Ionicons name="pencil" size={16} color={theme.colors.primary} />
+              <Text style={[styles.actionText, styles.editText]}>Edit</Text>
+            </TouchableOpacity>
+          )}
+          {onDelete && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={onDelete}
+            >
+              <Ionicons name="trash" size={16} color={theme.colors.error} />
+              <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
+            </TouchableOpacity>
           )}
         </View>
       </View>

@@ -19,43 +19,35 @@ import {
 } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "../../src/contexts/ThemeContext";
-import {
-  timeLogService,
-  locationService,
-  taskService,
-} from "../../src/services";
+import { taskService, projectService } from "../../src/services";
 import { showToast } from "../../src/utils/toast";
 import ProtectedRoute from "../../src/components/ProtectedRoute";
 import { Ionicons } from "@expo/vector-icons";
-import { DurationInput, DatePicker } from "../../src/components/ui";
+import { DatePicker } from "../../src/components/ui";
 
-export default function TimeLogFormScreen() {
+export default function TaskFormScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
-  const { id, isArchiveEdit, originalTimeLogId, taskId } = params;
+  const { id } = params;
   const isEditing = !!id;
-  const isEditingArchive = !!isArchiveEdit;
 
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    location: "",
-    duration: "",
-    task: "",
+    project: "",
+    deadline_at: null,
+    status: "pending",
   });
-  const [locations, setLocations] = useState([]);
-  const [tasks, setTasks] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [locationModalVisible, setLocationModalVisible] = useState(false);
-  const [taskModalVisible, setTaskModalVisible] = useState(false);
-  const [locationSearch, setLocationSearch] = useState("");
-  const [taskSearch, setTaskSearch] = useState("");
+  const [projectModalVisible, setProjectModalVisible] = useState(false);
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
+  const [projectSearch, setProjectSearch] = useState("");
   const scrollViewRef = useRef(null);
   const titleInputRef = useRef(null);
-  const durationInputRef = useRef(null);
   const descriptionInputRef = useRef(null);
   const [focusedInputRef, setFocusedInputRef] = useState(null);
 
@@ -83,55 +75,40 @@ export default function TimeLogFormScreen() {
 
   useEffect(() => {
     if (isEditing) {
-      loadTimeLog();
+      loadTask();
     } else {
-      // For new time logs, pre-select task if provided
-      setFormData((prev) => ({
-        ...prev,
-        task: taskId || "",
-      }));
+      // For new tasks, set deadline to today + 7 days
+      const today = new Date();
+      today.setDate(today.getDate() + 7);
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+      const todayString = `${year}-${month}-${day}`;
+      setFormData((prev) => ({ ...prev, deadline_at: todayString }));
     }
-  }, [id, isEditing, taskId]);
+  }, [id, isEditing]);
 
   const loadData = async () => {
     try {
-      const [locationsData, tasksData] = await Promise.all([
-        locationService.getAll(),
-        taskService.getAll(),
-      ]);
-      setLocations(locationsData);
-      setTasks(tasksData);
+      const projectsData = await projectService.getAll();
+      setProjects(projectsData);
     } catch (error) {
       console.error("Error loading data:", error);
       showToast("error", "Failed to load data");
     }
   };
 
-  const loadTimeLog = async () => {
+  const loadTask = async () => {
     setLoading(true);
     try {
-      let data;
-      if (isEditingArchive) {
-        // Load archive data for editing
-        const archives = await timeLogService.getArchivedLogs(
-          originalTimeLogId
-        );
-        const archiveToEdit = archives.find((archive) => archive.id === id);
-        if (!archiveToEdit) {
-          throw new Error("Archive not found");
-        }
-        data = archiveToEdit;
-      } else {
-        // Load regular time log data
-        data = await timeLogService.getById(id);
-      }
+      const data = await taskService.getById(id);
 
       setFormData({
         title: data.title || "",
         description: data.description || "",
-        location: data.location || "",
-        duration: data.duration || "",
-        task: data.task || "",
+        project: data.project || "",
+        deadline_at: data.deadline_at || null,
+        status: data.status || "pending",
       });
     } catch (error) {
       console.error("Error loading data:", error);
@@ -150,108 +127,54 @@ export default function TimeLogFormScreen() {
       return;
     }
 
-    if (!formData.location) {
-      showToast("error", "Please select a location");
+    if (!formData.project) {
+      showToast("error", "Please select a project");
       return;
     }
 
-    if (!formData.duration) {
-      showToast("error", "Please enter duration");
+    if (!formData.deadline_at) {
+      showToast("error", "Please enter a deadline");
       return;
     }
-
-    // Handle duration parsing more robustly
-    let duration = 0;
-    if (typeof formData.duration === "string") {
-      duration = parseFloat(formData.duration);
-    } else if (typeof formData.duration === "number") {
-      duration = formData.duration;
-    } else {
-      showToast("error", "Invalid duration format");
-      return;
-    }
-
-    if (isNaN(duration) || duration < 0) {
-      showToast("error", "Duration must be a non-negative number");
-      return;
-    }
-
-    console.log("Submitting with duration:", duration);
 
     const submitData = {
       title: formData.title.trim(),
       description: formData.description || "",
-      location: formData.location || null,
-      duration: duration,
-      task: formData.task || null,
+      project: formData.project,
+      deadline_at: formData.deadline_at,
+      status: formData.status,
     };
 
     console.log("Submit data:", submitData);
 
-    // Save directly without archive confirmation
-    await performSave(submitData, false, isEditingArchive);
-  };
-
-  const performSave = async (submitData) => {
     setSubmitting(true);
     try {
       if (isEditing) {
-        if (isEditingArchive) {
-          // Update archive record
-          await timeLogService.updateArchive(id, submitData);
-          showToast("success", "Archive updated successfully");
-        } else {
-          // Update regular time log
-          await timeLogService.update(id, submitData);
-          showToast("success", "Time log updated successfully");
-        }
+        await taskService.update(id, submitData);
+        showToast("success", "Task updated successfully");
       } else {
-        await timeLogService.create(submitData);
-        showToast("success", "Time log created successfully");
+        await taskService.create(submitData);
+        showToast("success", "Task created successfully");
       }
       router.back();
     } catch (error) {
       console.error("Error saving data:", error);
-
-      if (
-        error.message?.includes("relation") &&
-        error.message?.includes("does not exist")
-      ) {
-        showToast(
-          "error",
-          "Database table not found. Please check your Supabase setup."
-        );
-      } else {
-        showToast("error", error.message || "Failed to save data");
-      }
+      showToast("error", error.message || "Failed to save data");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const getSelectedLocation = () => {
-    return locations.find((l) => l.id === formData.location);
+  const getSelectedProject = () => {
+    return projects.find((p) => p.id === formData.project);
   };
 
-  const getSelectedTask = () => {
-    return tasks.find((t) => t.id === formData.task);
-  };
-
-  const getFilteredLocations = () => {
-    if (!locationSearch.trim()) {
-      return locations;
+  const getFilteredProjects = () => {
+    if (!projectSearch.trim()) {
+      return projects;
     }
-    return locations.filter((location) =>
-      location.title.toLowerCase().includes(locationSearch.toLowerCase())
-    );
-  };
-
-  const getFilteredTasks = () => {
-    if (!taskSearch.trim()) {
-      return tasks;
-    }
-    return tasks.filter((task) =>
-      task.title.toLowerCase().includes(taskSearch.toLowerCase())
+    return projects.filter((project) =>
+      project.title.toLowerCase().includes(projectSearch.toLowerCase())
     );
   };
 
@@ -434,63 +357,8 @@ export default function TimeLogFormScreen() {
         maxWidth: "100%",
       }),
     },
-    searchContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.surface,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      marginBottom: 16,
-    },
-    searchIcon: {
-      marginRight: 8,
-    },
-    iconContainer: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: theme.colors.primary + "20",
-      alignItems: "center",
-      justifyContent: "center",
-      alignSelf: "center",
-      marginBottom: 16,
-    },
-    message: {
-      fontSize: 16,
-      color: theme.colors.text,
-      textAlign: "center",
-      marginBottom: 8,
-      lineHeight: 24,
-    },
-    buttonsContainer: {
-      flexDirection: "row",
-      width: "100%",
-      gap: 12,
-    },
-    cancelButton: {
-      flex: 1,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: 8,
-      paddingVertical: 12,
-      alignItems: "center",
-    },
-    confirmButton: {
-      flex: 1,
-      backgroundColor: theme.colors.primary,
-      borderRadius: 8,
-      paddingVertical: 12,
-      alignItems: "center",
-    },
-    buttonText: {
-      fontSize: 16,
-      fontWeight: "600",
-    },
   });
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -504,11 +372,7 @@ export default function TimeLogFormScreen() {
             </TouchableOpacity>
 
             <Text style={styles.headerTitle}>
-              {isEditing
-                ? isEditingArchive
-                  ? "Edit Archive"
-                  : "Edit Time Log"
-                : "Add Time Log"}
+              {isEditing ? "Edit Task" : "Add Task"}
             </Text>
 
             <View style={styles.headerButton} />
@@ -520,8 +384,8 @@ export default function TimeLogFormScreen() {
       </ProtectedRoute>
     );
   }
-  const selectedLocation = getSelectedLocation();
-  const selectedTask = getSelectedTask();
+
+  const selectedProject = getSelectedProject();
 
   return (
     <ProtectedRoute>
@@ -543,7 +407,7 @@ export default function TimeLogFormScreen() {
             </TouchableOpacity>
 
             <Text style={styles.headerTitle}>
-              {isEditing ? "Edit Time Log" : "Add Time Log"}
+              {isEditing ? "Edit Task" : "Add Task"}
             </Text>
 
             <TouchableOpacity
@@ -574,7 +438,7 @@ export default function TimeLogFormScreen() {
               <TextInput
                 ref={titleInputRef}
                 style={[styles.input, styles.truncatedInput]}
-                placeholder="Enter time log title..."
+                placeholder="Enter task title..."
                 placeholderTextColor={theme.colors.textSecondary}
                 value={formData.title}
                 onChangeText={(text) =>
@@ -591,47 +455,21 @@ export default function TimeLogFormScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Location <Text style={styles.required}>*</Text>
+                Project <Text style={styles.required}>*</Text>
               </Text>
               <TouchableOpacity
                 style={styles.picker}
-                onPress={() => setLocationModalVisible(true)}
+                onPress={() => setProjectModalVisible(true)}
               >
                 <Text
                   style={[
                     styles.pickerText,
-                    !selectedLocation && styles.pickerPlaceholder,
+                    !selectedProject && styles.pickerPlaceholder,
                   ]}
                   numberOfLines={1}
                   ellipsizeMode="tail"
                 >
-                  {selectedLocation
-                    ? selectedLocation.title
-                    : "Select a location"}
-                </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Task (Optional)</Text>
-              <TouchableOpacity
-                style={styles.picker}
-                onPress={() => setTaskModalVisible(true)}
-              >
-                <Text
-                  style={[
-                    styles.pickerText,
-                    !selectedTask && styles.pickerPlaceholder,
-                  ]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {selectedTask ? selectedTask.title : "Select a task"}
+                  {selectedProject ? selectedProject.title : "Select a project"}
                 </Text>
                 <Ionicons
                   name="chevron-down"
@@ -643,14 +481,44 @@ export default function TimeLogFormScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Duration <Text style={styles.required}>*</Text>
+                Deadline <Text style={styles.required}>*</Text>
               </Text>
-              <DurationInput
-                value={formData.duration}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, duration: text })
+              <DatePicker
+                value={formData.deadline_at}
+                onChange={(date) =>
+                  setFormData({ ...formData, deadline_at: date })
                 }
+                placeholder="Select deadline date"
+                minimumDate={new Date()}
               />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Status</Text>
+              <TouchableOpacity
+                style={styles.picker}
+                onPress={() => setStatusModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.pickerText,
+                    !formData.status && styles.pickerPlaceholder,
+                  ]}
+                >
+                  {formData.status === "pending"
+                    ? "Pending"
+                    : formData.status === "in_progress"
+                    ? "In Progress"
+                    : formData.status === "done"
+                    ? "Done"
+                    : "Select status"}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.inputGroup}>
@@ -658,7 +526,7 @@ export default function TimeLogFormScreen() {
               <TextInput
                 ref={descriptionInputRef}
                 style={[styles.input, styles.descriptionInput]}
-                placeholder="Enter time log description..."
+                placeholder="Enter task description..."
                 placeholderTextColor={theme.colors.textSecondary}
                 value={formData.description}
                 onChangeText={(text) =>
@@ -674,25 +542,25 @@ export default function TimeLogFormScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Location Selection Modal */}
+        {/* Project Selection Modal */}
         <Modal
-          visible={locationModalVisible}
+          visible={projectModalVisible}
           transparent
           animationType="fade"
           onRequestClose={() => {
-            setLocationModalVisible(false);
-            setLocationSearch("");
+            setProjectModalVisible(false);
+            setProjectSearch("");
           }}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Location</Text>
+                <Text style={styles.modalTitle}>Select Project</Text>
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => {
-                    setLocationModalVisible(false);
-                    setLocationSearch("");
+                    setProjectModalVisible(false);
+                    setProjectSearch("");
                   }}
                 >
                   <Ionicons
@@ -705,22 +573,22 @@ export default function TimeLogFormScreen() {
 
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search locations..."
+                placeholder="Search projects..."
                 placeholderTextColor={theme.colors.textSecondary}
-                value={locationSearch}
-                onChangeText={setLocationSearch}
+                value={projectSearch}
+                onChangeText={setProjectSearch}
                 autoCapitalize="none"
                 autoCorrect={false}
                 ellipsizeMode="tail"
               />
 
               <View style={styles.listContainer}>
-                {getFilteredLocations().length > 0 ? (
+                {getFilteredProjects().length > 0 ? (
                   <FlatList
-                    data={getFilteredLocations()}
+                    data={getFilteredProjects()}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
-                      const isSelected = item.id === formData.location;
+                      const isSelected = item.id === formData.project;
                       return (
                         <TouchableOpacity
                           style={[
@@ -728,9 +596,9 @@ export default function TimeLogFormScreen() {
                             isSelected && styles.selectedItem,
                           ]}
                           onPress={() => {
-                            setFormData({ ...formData, location: item.id });
-                            setLocationModalVisible(false);
-                            setLocationSearch("");
+                            setFormData({ ...formData, project: item.id });
+                            setProjectModalVisible(false);
+                            setProjectSearch("");
                           }}
                         >
                           <Text
@@ -749,9 +617,9 @@ export default function TimeLogFormScreen() {
                 ) : (
                   <View style={styles.emptyContainer}>
                     <Text style={styles.emptyText}>
-                      {locationSearch.trim()
-                        ? "No locations found matching your search"
-                        : "No locations available"}
+                      {projectSearch.trim()
+                        ? "No projects found matching your search"
+                        : "No projects available"}
                     </Text>
                   </View>
                 )}
@@ -760,26 +628,20 @@ export default function TimeLogFormScreen() {
           </View>
         </Modal>
 
-        {/* Task Selection Modal */}
+        {/* Status Selection Modal */}
         <Modal
-          visible={taskModalVisible}
+          visible={statusModalVisible}
           transparent
           animationType="fade"
-          onRequestClose={() => {
-            setTaskModalVisible(false);
-            setTaskSearch("");
-          }}
+          onRequestClose={() => setStatusModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Task</Text>
+                <Text style={styles.modalTitle}>Select Status</Text>
                 <TouchableOpacity
                   style={styles.closeButton}
-                  onPress={() => {
-                    setTaskModalVisible(false);
-                    setTaskSearch("");
-                  }}
+                  onPress={() => setStatusModalVisible(false)}
                 >
                   <Ionicons
                     name="close"
@@ -789,58 +651,67 @@ export default function TimeLogFormScreen() {
                 </TouchableOpacity>
               </View>
 
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search tasks..."
-                placeholderTextColor={theme.colors.textSecondary}
-                value={taskSearch}
-                onChangeText={setTaskSearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-                ellipsizeMode="tail"
-              />
-
               <View style={styles.listContainer}>
-                {getFilteredTasks().length > 0 ? (
-                  <FlatList
-                    data={getFilteredTasks()}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => {
-                      const isSelected = item.id === formData.task;
-                      return (
-                        <TouchableOpacity
-                          style={[
-                            styles.item,
-                            isSelected && styles.selectedItem,
-                          ]}
-                          onPress={() => {
-                            setFormData({ ...formData, task: item.id });
-                            setTaskModalVisible(false);
-                            setTaskSearch("");
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.itemText,
-                              isSelected && styles.selectedItemText,
-                            ]}
-                          >
-                            {item.title}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    }}
-                    showsVerticalScrollIndicator={false}
-                  />
-                ) : (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>
-                      {taskSearch.trim()
-                        ? "No tasks found matching your search"
-                        : "No tasks available"}
-                    </Text>
-                  </View>
-                )}
+                <TouchableOpacity
+                  style={[
+                    styles.item,
+                    formData.status === "pending" && styles.selectedItem,
+                  ]}
+                  onPress={() => {
+                    setFormData({ ...formData, status: "pending" });
+                    setStatusModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.itemText,
+                      formData.status === "pending" && styles.selectedItemText,
+                    ]}
+                  >
+                    Pending
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.item,
+                    formData.status === "in_progress" && styles.selectedItem,
+                  ]}
+                  onPress={() => {
+                    setFormData({ ...formData, status: "in_progress" });
+                    setStatusModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.itemText,
+                      formData.status === "in_progress" &&
+                        styles.selectedItemText,
+                    ]}
+                  >
+                    In Progress
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.item,
+                    formData.status === "done" && styles.selectedItem,
+                  ]}
+                  onPress={() => {
+                    setFormData({ ...formData, status: "done" });
+                    setStatusModalVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.itemText,
+                      formData.status === "done" && styles.selectedItemText,
+                    ]}
+                  >
+                    Done
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>

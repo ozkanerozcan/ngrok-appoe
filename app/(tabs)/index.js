@@ -17,6 +17,7 @@ import {
   timeLogService,
   projectService,
   locationService,
+  taskService,
 } from "../../src/services";
 import { formatDurationEnglish } from "../../src/utils/duration";
 import { showToast } from "../../src/utils/toast";
@@ -62,10 +63,11 @@ export default function DashboardScreen() {
   const loadDashboardData = async () => {
     try {
       // Load all data in parallel
-      const [timeLogs, projects, locations] = await Promise.all([
+      const [timeLogs, projects, locations, tasks] = await Promise.all([
         timeLogService.getAll(),
         projectService.getAll(),
         locationService.getAll(),
+        taskService.getAll(),
       ]);
 
       const now = new Date();
@@ -166,31 +168,81 @@ export default function DashboardScreen() {
       const oneWeekFromNow = new Date(todayForDeadlines);
       oneWeekFromNow.setDate(todayForDeadlines.getDate() + 7);
 
-      // Filter time logs with deadlines
-      const timeLogsWithDeadlines = timeLogs.filter((log) => log.deadline_at);
+      // Filter tasks with deadlines
+      const tasksWithDeadlines = tasks.filter((task) => task.deadline_at);
+
+      console.log("Total tasks:", tasks.length);
+      console.log("Tasks with deadlines:", tasksWithDeadlines.length);
+      console.log("Today for deadlines:", todayForDeadlines.toDateString());
+      console.log("One week from now:", oneWeekFromNow.toDateString());
+
+      // Helper function to compare only dates (ignore time)
+      const isSameDate = (date1, date2) => {
+        const d1 = new Date(date1);
+        const d2 = new Date(date2);
+        return (
+          d1.getFullYear() === d2.getFullYear() &&
+          d1.getMonth() === d2.getMonth() &&
+          d1.getDate() === d2.getDate()
+        );
+      };
+
+      const isBeforeDate = (date1, date2) => {
+        const d1 = new Date(date1);
+        const d2 = new Date(date2);
+        d1.setHours(0, 0, 0, 0);
+        d2.setHours(0, 0, 0, 0);
+        return d1 < d2;
+      };
 
       // Approaching deadlines (within 1 week, not done)
-      const approachingDeadlines = timeLogsWithDeadlines
-        .filter((log) => {
-          const deadline = new Date(log.deadline_at);
-          return (
+      const approachingDeadlines = tasksWithDeadlines
+        .filter((task) => {
+          const deadline = new Date(task.deadline_at);
+          deadline.setHours(0, 0, 0, 0); // Set to start of day for date-only comparison
+          const isApproaching =
             deadline >= todayForDeadlines &&
             deadline <= oneWeekFromNow &&
-            log.status !== "done"
-          );
+            task.status !== "done";
+
+          if (isApproaching) {
+            console.log(
+              "Approaching task found:",
+              task.title,
+              "deadline:",
+              deadline.toDateString()
+            );
+          }
+
+          return isApproaching;
         })
         .sort((a, b) => new Date(a.deadline_at) - new Date(b.deadline_at))
         .slice(0, 5); // Show top 5
 
       // Overdue deadlines (past current date, not done)
-      const overdueDeadlines = timeLogsWithDeadlines
-        .filter(
-          (log) =>
-            new Date(log.deadline_at) < todayForDeadlines &&
-            log.status !== "done"
-        )
+      const overdueDeadlines = tasksWithDeadlines
+        .filter((task) => {
+          const deadline = new Date(task.deadline_at);
+          deadline.setHours(0, 0, 0, 0); // Set to start of day for date-only comparison
+          const isOverdue =
+            deadline < todayForDeadlines && task.status !== "done";
+
+          if (isOverdue) {
+            console.log(
+              "Overdue task found:",
+              task.title,
+              "deadline:",
+              deadline.toDateString()
+            );
+          }
+
+          return isOverdue;
+        })
         .sort((a, b) => new Date(a.deadline_at) - new Date(b.deadline_at))
         .slice(0, 5); // Show top 5
+
+      console.log("Approaching deadlines found:", approachingDeadlines.length);
+      console.log("Overdue deadlines found:", overdueDeadlines.length);
 
       // Get recent logs (last 3, sorted by updated_at descending)
       const recentLogsList = timeLogs
@@ -724,67 +776,99 @@ export default function DashboardScreen() {
 
             <TouchableOpacity
               style={styles.quickActionItem}
-              onPress={() => router.push("/timelogs")}
+              onPress={() => router.push("/tasks/form")}
             >
               <View style={styles.quickActionIcon}>
                 <Ionicons
-                  name="list-outline"
+                  name="add-circle-outline"
                   size={20}
                   color={theme.colors.primary}
                 />
               </View>
-              <Text style={styles.quickActionLabel}>{"View\nLogs"}</Text>
+              <Text style={styles.quickActionLabel}>{"Add\nTask"}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Overdue Deadlines */}
-        {dashboardData.overdueDeadlines.length > 0 && (
-          <View style={styles.deadlineSection}>
-            <Text style={styles.deadlineTitle}>Overdue Deadlines</Text>
-            {dashboardData.overdueDeadlines.map((log) => (
-              <TouchableOpacity
-                key={log.id}
-                style={[styles.deadlineItem, styles.overdueDeadlineItem]}
-                onPress={() => router.push(`/details?id=${log.id}`)}
-              >
-                <Text style={styles.deadlineItemTitle}>{log.title}</Text>
-                <Text style={styles.deadlineItemMeta}>
-                  {log.description && `${log.description} • `}
-                  {log.projects && `${log.projects.title} • `}
-                  {formatDurationEnglish(log.duration || 0)}
-                </Text>
-                <Text style={styles.deadlineDate}>
-                  Overdue: {formatDateDDMMYYYY(log.deadline_at)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        {/* Task Deadlines Section */}
+        <View style={styles.deadlineSection}>
+          <Text style={styles.deadlineTitle}>Task Deadlines</Text>
 
-        {/* Approaching Deadlines */}
-        {dashboardData.approachingDeadlines.length > 0 && (
-          <View style={styles.deadlineSection}>
-            <Text style={styles.deadlineTitle}>Approaching Deadlines</Text>
-            {dashboardData.approachingDeadlines.map((log) => (
+          {/* Overdue Deadlines */}
+          {dashboardData.overdueDeadlines.length > 0 ? (
+            dashboardData.overdueDeadlines.map((task) => (
               <TouchableOpacity
-                key={log.id}
-                style={[styles.deadlineItem, styles.approachingDeadlineItem]}
-                onPress={() => router.push(`/details?id=${log.id}`)}
+                key={task.id}
+                style={[styles.deadlineItem, styles.overdueDeadlineItem]}
+                onPress={() => router.push(`/tasks?id=${task.id}`)}
               >
-                <Text style={styles.deadlineItemTitle}>{log.title}</Text>
+                <Text style={styles.deadlineItemTitle}>{task.title}</Text>
                 <Text style={styles.deadlineItemMeta}>
-                  {log.description && `${log.description} • `}
-                  {log.projects && `${log.projects.title} • `}
-                  {formatDurationEnglish(log.duration || 0)}
+                  {task.description &&
+                    `${task.description.substring(0, 50)}${
+                      task.description.length > 50 ? "..." : ""
+                    } • `}
+                  {task.projects && `${task.projects.title} • `}
+                  Status: {task.status || "pending"}
                 </Text>
                 <Text style={styles.deadlineDate}>
-                  Due: {formatDateDDMMYYYY(log.deadline_at)}
+                  Overdue: {formatDateDDMMYYYY(task.deadline_at)}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        )}
+            ))
+          ) : (
+            <View style={styles.noDeadlinesContainer}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={48}
+                color={theme.colors.textSecondary}
+              />
+              <Text style={styles.noDeadlinesText}>No overdue tasks</Text>
+            </View>
+          )}
+
+          {/* Approaching Deadlines */}
+          {dashboardData.approachingDeadlines.length > 0 && (
+            <>
+              {dashboardData.approachingDeadlines.map((task) => (
+                <TouchableOpacity
+                  key={task.id}
+                  style={[styles.deadlineItem, styles.approachingDeadlineItem]}
+                  onPress={() => router.push(`/tasks?id=${task.id}`)}
+                >
+                  <Text style={styles.deadlineItemTitle}>{task.title}</Text>
+                  <Text style={styles.deadlineItemMeta}>
+                    {task.description &&
+                      `${task.description.substring(0, 50)}${
+                        task.description.length > 50 ? "..." : ""
+                      } • `}
+                    {task.projects && `${task.projects.title} • `}
+                    Status: {task.status || "pending"}
+                  </Text>
+                  <Text style={styles.deadlineDate}>
+                    Due: {formatDateDDMMYYYY(task.deadline_at)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+
+          {/* No deadlines at all */}
+          {dashboardData.overdueDeadlines.length === 0 &&
+            dashboardData.approachingDeadlines.length === 0 && (
+              <View style={styles.noDeadlinesContainer}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={48}
+                  color={theme.colors.textSecondary}
+                />
+                <Text style={styles.noDeadlinesText}>
+                  No tasks with deadlines found.{"\n"}Add deadlines to your
+                  tasks to see them here.
+                </Text>
+              </View>
+            )}
+        </View>
 
         {/* Daily Goal Progress */}
         <View style={styles.goalSection}>

@@ -20,7 +20,7 @@ export default function DurationInput({
     // Don't update if user is currently typing
     if (isUserTypingRef.current) return;
 
-    if (value && typeof value === "number") {
+    if (typeof value === "number" && value >= 0) {
       const decimalHours = value;
       const h = Math.floor(decimalHours);
       const m = Math.round((decimalHours - h) * 60);
@@ -72,11 +72,8 @@ export default function DurationInput({
     const m = parseInt(minutes || "0", 10);
     const decimalHours = h + m / 60;
 
-    if (decimalHours > 0 || (h === 0 && m === 0)) {
-      onChangeText(decimalHours.toString());
-    } else {
-      onChangeText("");
-    }
+    // Always send the calculated decimal hours, including 0
+    onChangeText(decimalHours.toString());
 
     // Clear typing flag after a short delay
     setTimeout(() => {
@@ -105,11 +102,8 @@ export default function DurationInput({
     const m = parseInt(numericText || "0", 10);
     const decimalHours = h + m / 60;
 
-    if (decimalHours > 0 || (h === 0 && m === 0)) {
-      onChangeText(decimalHours.toString());
-    } else {
-      onChangeText("");
-    }
+    // Always send the calculated decimal hours, including 0
+    onChangeText(decimalHours.toString());
 
     // Clear typing flag after a short delay
     setTimeout(() => {

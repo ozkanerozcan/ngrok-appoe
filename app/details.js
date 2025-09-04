@@ -44,13 +44,6 @@ export default function DetailsScreen() {
     return status.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
-  const [archivedLogs, setArchivedLogs] = useState([]);
-  const [loadingArchives, setLoadingArchives] = useState(false);
-  const [deleteArchiveModalVisible, setDeleteArchiveModalVisible] =
-    useState(false);
-  const [archiveToDelete, setArchiveToDelete] = useState(null);
-  const [deletingArchive, setDeletingArchive] = useState(false);
-
   // State for fetched time log data
   const [timeLogData, setTimeLogData] = useState(null);
   const [loadingTimeLog, setLoadingTimeLog] = useState(false);
@@ -69,6 +62,7 @@ export default function DetailsScreen() {
     duration: durationParam,
     deadline_at: deadlineAtParam,
     status: statusParam,
+    task: taskParam,
   } = params;
 
   // Determine if we need to fetch data (only ID provided) or use params
@@ -83,11 +77,11 @@ export default function DetailsScreen() {
   const duration = timeLogData?.duration || durationParam;
   const deadline_at = timeLogData?.deadline_at || deadlineAtParam;
   const status = timeLogData?.status || statusParam;
-
   // Parse JSON strings back to objects or use fetched data
   const created_by =
     timeLogData?.created_by_profile ||
     (createdByParam ? JSON.parse(createdByParam) : null);
+
   const updated_by =
     timeLogData?.updated_by_profile ||
     (updatedByParam ? JSON.parse(updatedByParam) : null);
@@ -96,6 +90,7 @@ export default function DetailsScreen() {
   const location =
     timeLogData?.locations ||
     (locationParam ? JSON.parse(locationParam) : null);
+  const task = timeLogData?.tasks || (taskParam ? JSON.parse(taskParam) : null);
 
   // Fetch time log data when component mounts
   useEffect(() => {
@@ -104,19 +99,11 @@ export default function DetailsScreen() {
     }
   }, [id]);
 
-  // Fetch archived logs when component mounts or when returning to screen
-  useEffect(() => {
-    if (id) {
-      loadArchivedLogs();
-    }
-  }, [id]);
-
   // Refresh data when screen comes into focus (e.g., after editing)
   useFocusEffect(
     useCallback(() => {
       if (id) {
         loadTimeLogData();
-        loadArchivedLogs();
       }
     }, [id])
   );
@@ -130,78 +117,14 @@ export default function DetailsScreen() {
       setTimeLogData(data);
     } catch (error) {
       console.error("Error loading time log data:", error);
-      showToast("error", "Failed to load time log data");
+      if (error.message === "Time log not found") {
+        showToast("error", "Time log not found or access denied");
+      } else {
+        showToast("error", "Failed to load time log data");
+      }
     } finally {
       setLoadingTimeLog(false);
     }
-  };
-
-  const loadArchivedLogs = async () => {
-    if (!id) return;
-
-    setLoadingArchives(true);
-    try {
-      const archives = await timeLogService.getArchivedLogs(id);
-      setArchivedLogs(archives);
-    } catch (error) {
-      console.error("Error loading archived logs:", error);
-      // Don't show error toast for missing archive table, just silently fail
-    } finally {
-      setLoadingArchives(false);
-    }
-  };
-
-  const handleEditArchive = (archiveItem) => {
-    // Navigate to form with archive data for editing
-    const archiveData = {
-      ...archiveItem,
-      isArchiveEdit: true,
-      originalTimeLogId: archiveItem.original_time_log,
-    };
-
-    // Convert archive data to URL parameters
-    const params = new URLSearchParams();
-    Object.keys(archiveData).forEach((key) => {
-      if (archiveData[key] !== null && archiveData[key] !== undefined) {
-        params.append(
-          key,
-          typeof archiveData[key] === "object"
-            ? JSON.stringify(archiveData[key])
-            : archiveData[key].toString()
-        );
-      }
-    });
-
-    router.push(`/timelogs/form?${params.toString()}`);
-  };
-
-  const handleDeleteArchive = (archiveItem) => {
-    setArchiveToDelete(archiveItem);
-    setDeleteArchiveModalVisible(true);
-  };
-
-  const handleConfirmDeleteArchive = async () => {
-    if (!archiveToDelete) return;
-
-    setDeletingArchive(true);
-    try {
-      // Note: We'll need to add deleteArchive function to the service
-      await timeLogService.deleteArchive(archiveToDelete.id);
-      // Refresh the archived logs
-      await loadArchivedLogs();
-      setDeleteArchiveModalVisible(false);
-      setArchiveToDelete(null);
-    } catch (error) {
-      console.error("Error deleting archive:", error);
-      // Handle error (could add toast notification)
-    } finally {
-      setDeletingArchive(false);
-    }
-  };
-
-  const handleCancelDeleteArchive = () => {
-    setDeleteArchiveModalVisible(false);
-    setArchiveToDelete(null);
   };
 
   const handleEdit = () => {
@@ -260,24 +183,10 @@ export default function DetailsScreen() {
       location ||
       duration ||
       deadline_at ||
-      status
+      status ||
+      task
     ) {
       data.push({ type: "metadata" });
-    }
-
-    // Archive section
-    if (id) {
-      data.push({ type: "archive-header" });
-
-      if (loadingArchives) {
-        data.push({ type: "archive-loading" });
-      } else if (archivedLogs.length > 0) {
-        archivedLogs.forEach((item) => {
-          data.push({ type: "archive-item", ...item });
-        });
-      } else {
-        data.push({ type: "archive-empty" });
-      }
     }
 
     return data;
@@ -362,6 +271,15 @@ export default function DetailsScreen() {
               </View>
             )}
 
+            {task && (
+              <View style={styles.metadataItem}>
+                <Text style={styles.metadataLabel}>Task:</Text>
+                <Text style={styles.metadataValueFlexible}>
+                  {typeof task === "object" ? task.title : task}
+                </Text>
+              </View>
+            )}
+
             {duration && (
               <View style={styles.metadataItem}>
                 <Text style={styles.metadataLabel}>Duration:</Text>
@@ -386,116 +304,6 @@ export default function DetailsScreen() {
                 <Text style={styles.metadataValue}>{formatStatus(status)}</Text>
               </View>
             )}
-          </View>
-        );
-      case "archive-header":
-        return (
-          <View style={styles.archiveSection}>
-            <Text style={styles.archiveTitle}>Archive History</Text>
-          </View>
-        );
-      case "archive-loading":
-        return (
-          <View style={styles.archiveSection}>
-            <Text style={styles.archiveEmpty}>Loading archive history...</Text>
-          </View>
-        );
-      case "archive-empty":
-        return (
-          <View style={styles.archiveSection}>
-            <Text style={styles.archiveEmpty}>
-              No archived versions found for this time log.
-            </Text>
-          </View>
-        );
-      case "archive-item":
-        return (
-          <View style={styles.archiveItem}>
-            <View style={styles.archiveItemHeader}>
-              <Text style={styles.archiveItemDate}>
-                {item.created_at
-                  ? formatDateDDMMYYYY(item.created_at)
-                  : "Unknown"}
-              </Text>
-              <View style={styles.archiveItemActions}>
-                <TouchableOpacity
-                  style={styles.archiveActionButton}
-                  onPress={() => handleEditArchive(item)}
-                >
-                  <Ionicons
-                    name="pencil"
-                    size={16}
-                    color={theme.colors.primary}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.archiveActionButton}
-                  onPress={() => handleDeleteArchive(item)}
-                >
-                  <Ionicons name="trash" size={16} color={theme.colors.error} />
-                </TouchableOpacity>
-              </View>
-            </View>
-            <View style={styles.archiveItemDetails}>
-              <Text
-                style={styles.archiveItemTitle}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {item.title || "Untitled"}
-              </Text>
-              {item.description && (
-                <Text
-                  style={styles.archiveItemDescription}
-                  numberOfLines={2}
-                  ellipsizeMode="tail"
-                >
-                  {item.description}
-                </Text>
-              )}
-              <View style={styles.archiveItemDetailRow}>
-                <Text style={styles.archiveItemDetailLabel}>Duration:</Text>
-                <Text style={styles.archiveItemDetailValue}>
-                  {formatDurationEnglish(item.duration || 0)}
-                </Text>
-              </View>
-              {item.projects && (
-                <View style={styles.archiveItemDetailRow}>
-                  <Text style={styles.archiveItemDetailLabel}>Project:</Text>
-                  <Text
-                    style={styles.archiveItemDetailValue}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {typeof item.projects === "object"
-                      ? item.projects.title
-                      : item.projects}
-                  </Text>
-                </View>
-              )}
-              {item.locations && (
-                <View style={styles.archiveItemDetailRow}>
-                  <Text style={styles.archiveItemDetailLabel}>Location:</Text>
-                  <Text
-                    style={styles.archiveItemDetailValue}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {typeof item.locations === "object"
-                      ? item.locations.title
-                      : item.locations}
-                  </Text>
-                </View>
-              )}
-              {item.deadline_at && (
-                <View style={styles.archiveItemDetailRow}>
-                  <Text style={styles.archiveItemDetailLabel}>Deadline:</Text>
-                  <Text style={styles.archiveItemDetailValue}>
-                    {formatDateDDMMYYYY(item.deadline_at)}
-                  </Text>
-                </View>
-              )}
-            </View>
           </View>
         );
       default:
@@ -595,92 +403,6 @@ export default function DetailsScreen() {
         wordBreak: "break-word",
       }),
     },
-    archiveSection: {
-      marginTop: 32,
-      paddingTop: 8,
-    },
-    archiveTitle: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.colors.text,
-      marginBottom: 2,
-    },
-    archiveItem: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 8,
-      padding: 12,
-      marginBottom: 8,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    archiveItemHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-    archiveItemTitle: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.colors.text,
-      flex: 1,
-    },
-    archiveItemDate: {
-      fontSize: 14,
-      fontWeight: "bold",
-      color: theme.colors.text,
-    },
-    archiveItemTitle: {
-      fontSize: 16,
-      fontWeight: "bold",
-      color: theme.colors.text,
-      marginBottom: 4,
-    },
-    archiveItemDescription: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      marginBottom: 8,
-      lineHeight: 20,
-    },
-    archiveItemDetails: {
-      marginTop: 8,
-    },
-    archiveItemDetailRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 4,
-    },
-    archiveItemDetailLabel: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: theme.colors.textSecondary,
-      minWidth: 60,
-      marginRight: 8,
-    },
-    archiveItemDetailValue: {
-      fontSize: 12,
-      color: theme.colors.text,
-      flex: 1,
-    },
-    archiveEmpty: {
-      textAlign: "center",
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      fontStyle: "italic",
-      marginTop: 0,
-    },
-    archiveItemActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    archiveActionButton: {
-      padding: 6,
-      borderRadius: 6,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
     loadingContainer: {
       flex: 1,
       justifyContent: "center",
@@ -779,71 +501,6 @@ export default function DetailsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         />
-
-        {/* Delete Archive Confirmation Modal */}
-        <Modal
-          visible={deleteArchiveModalVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setDeleteArchiveModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, { maxWidth: 400 }]}>
-              <View style={styles.iconContainer}>
-                <Ionicons
-                  name="trash-outline"
-                  size={32}
-                  color={theme.colors.error}
-                />
-              </View>
-
-              <Text style={styles.message}>Delete this archived version?</Text>
-
-              <Text
-                style={[
-                  styles.message,
-                  {
-                    fontSize: 14,
-                    color: theme.colors.textSecondary,
-                    marginBottom: 24,
-                  },
-                ]}
-              >
-                This will permanently remove this archived version. This action
-                cannot be undone.
-              </Text>
-
-              <View style={styles.buttonsContainer}>
-                <TouchableOpacity
-                  style={[styles.cancelButton, { flex: 1, marginRight: 6 }]}
-                  onPress={handleCancelDeleteArchive}
-                  disabled={deletingArchive}
-                >
-                  <Text
-                    style={[styles.buttonText, { color: theme.colors.text }]}
-                  >
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.confirmButton, { flex: 1, marginLeft: 6 }]}
-                  onPress={handleConfirmDeleteArchive}
-                  disabled={deletingArchive}
-                >
-                  <Text
-                    style={[
-                      styles.buttonText,
-                      { color: theme.colors.onPrimary },
-                    ]}
-                  >
-                    {deletingArchive ? "Deleting..." : "Delete"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
       </SafeAreaView>
     </ProtectedRoute>
   );
