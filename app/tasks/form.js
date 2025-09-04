@@ -530,32 +530,6 @@ export default function TaskFormScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Activity (Optional)</Text>
-              <TouchableOpacity
-                style={styles.picker}
-                onPress={() => setActivityModalVisible(true)}
-              >
-                <Text
-                  style={[
-                    styles.pickerText,
-                    !getSelectedActivity() && styles.pickerPlaceholder,
-                  ]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {getSelectedActivity()
-                    ? getSelectedActivity().title
-                    : "Select an activity"}
-                </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputGroup}>
               <Text style={styles.label}>Module (Optional)</Text>
               <TouchableOpacity
                 style={styles.picker}
@@ -572,6 +546,32 @@ export default function TaskFormScreen() {
                   {getSelectedModule()
                     ? getSelectedModule().title
                     : "Select a module"}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Activity (Optional)</Text>
+              <TouchableOpacity
+                style={styles.picker}
+                onPress={() => setActivityModalVisible(true)}
+              >
+                <Text
+                  style={[
+                    styles.pickerText,
+                    !getSelectedActivity() && styles.pickerPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {getSelectedActivity()
+                    ? getSelectedActivity().title
+                    : "Select an activity"}
                 </Text>
                 <Ionicons
                   name="chevron-down"

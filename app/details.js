@@ -169,7 +169,8 @@ export default function DetailsScreen() {
     }
 
     // Main content
-    if (title) data.push({ type: "title", content: title });
+    // Remove title display for time logs details page
+    // if (title) data.push({ type: "title", content: title });
     if (subtitle) data.push({ type: "subtitle", content: subtitle });
     if (description) data.push({ type: "description", content: description });
 

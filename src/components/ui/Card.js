@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
+import { formatDurationEnglish } from "../../utils/duration";
 
 export default function Card({
   title,
@@ -54,14 +55,39 @@ export default function Card({
       opacity: 0.7,
     },
     header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
       marginBottom: 8,
     },
     topRightContainer: {
       alignItems: "flex-end",
       marginBottom: 8,
+    },
+    topRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    dateContainer: {
+      flex: 1,
+    },
+    durationContainer: {
+      flex: 0,
+    },
+    updatedAtTopLeft: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      fontWeight: "500",
+    },
+    durationBadge: {
+      backgroundColor: theme.colors.primary + "20",
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+    },
+    durationText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: theme.colors.primary,
     },
     content: {
       flex: 1,
@@ -81,6 +107,29 @@ export default function Card({
       fontSize: 14,
       color: theme.colors.text,
       lineHeight: 20,
+    },
+    updatedAt: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      marginTop: 4,
+    },
+    updatedAtInActions: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      marginLeft: 8,
+    },
+    updatedAtContainer: {
+      paddingVertical: 4,
+      paddingHorizontal: 16,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+      alignSelf: "flex-start",
+    },
+    updatedAtText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      fontWeight: "500",
     },
     actions: {
       flexDirection: "row",
@@ -152,6 +201,31 @@ export default function Card({
         <View style={styles.topRightContainer}>{topRightContent}</View>
       )}
       <View style={styles.header}>
+        {/* Top row: Date left, Duration right */}
+        <View style={styles.topRow}>
+          <View style={styles.dateContainer}>
+            {updated_at && (
+              <Text style={styles.updatedAtTopLeft}>
+                {new Date(updated_at).toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                })}
+              </Text>
+            )}
+          </View>
+          <View style={styles.durationContainer}>
+            {duration && (
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>
+                  {formatDurationEnglish(duration)}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Content below */}
         <View style={styles.content}>
           {title ? (
             <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
@@ -170,9 +244,6 @@ export default function Card({
           ) : null}
           {children}
         </View>
-        {rightContent && (
-          <View style={styles.rightContent}>{rightContent}</View>
-        )}
       </View>
 
       <View style={styles.actions}>

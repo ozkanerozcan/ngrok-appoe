@@ -393,6 +393,8 @@ export default function TaskDetailsScreen() {
       task.updated_by_profile ||
       task.updated_at ||
       task.projects ||
+      task.activities ||
+      task.modules ||
       task.deadline_at ||
       task.status
     ) {
@@ -492,6 +494,26 @@ export default function TaskDetailsScreen() {
                   {typeof task.projects === "object"
                     ? task.projects.title
                     : task.projects}
+                </Text>
+              </View>
+            )}
+            {task.modules && (
+              <View style={styles.metadataItem}>
+                <Text style={styles.metadataLabel}>Module:</Text>
+                <Text style={styles.metadataValueFlexible}>
+                  {typeof task.modules === "object"
+                    ? task.modules.title
+                    : task.modules}
+                </Text>
+              </View>
+            )}
+            {task.activities && (
+              <View style={styles.metadataItem}>
+                <Text style={styles.metadataLabel}>Activity:</Text>
+                <Text style={styles.metadataValueFlexible}>
+                  {typeof task.activities === "object"
+                    ? task.activities.title
+                    : task.activities}
                 </Text>
               </View>
             )}

@@ -10,7 +10,6 @@ import {
   ScrollView,
   Dimensions,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme } from "../../contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -60,37 +59,6 @@ export default function DatePicker({
       setTempDate(new Date());
     }
     setShowPicker(true);
-  };
-
-  const handleDateChange = (event, date) => {
-    if (Platform.OS === "android") {
-      setShowPicker(false);
-    }
-
-    if (date) {
-      // Format date as YYYY-MM-DD
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      const formattedDate = `${year}-${month}-${day}`;
-      onChange(formattedDate);
-    }
-
-    if (Platform.OS === "ios") {
-      setTempDate(date || new Date());
-    }
-  };
-
-  const handleDone = () => {
-    setShowPicker(false);
-  };
-
-  const handleWebDateChange = (text) => {
-    if (text) {
-      onChange(text);
-    } else {
-      onChange("");
-    }
   };
 
   // Custom modal date picker for better theme support
@@ -387,64 +355,9 @@ export default function DatePicker({
       padding: 4,
       zIndex: 10,
     },
-    webInput: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      opacity: 0,
-      width: "100%",
-      height: "100%",
-    },
   });
 
-  // Web fallback using HTML5 date input
-  if (Platform.OS === "web") {
-    return (
-      <View style={styles.container}>
-        <View style={[styles.picker, style]}>
-          <Text
-            style={[styles.pickerText, !selectedDate && styles.placeholder]}
-          >
-            {selectedDate ? formatDateDDMMYYYY(selectedDate) : placeholder}
-          </Text>
-          <Ionicons
-            name="calendar-outline"
-            size={20}
-            color={theme.colors.textSecondary}
-          />
-          <input
-            type="date"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              opacity: 0,
-              cursor: "pointer",
-              border: "none",
-              outline: "none",
-              fontSize: 16,
-              zIndex: 5,
-            }}
-            value={getDefaultDate() || ""}
-            onChange={(e) => handleWebDateChange(e.target.value)}
-            min={
-              minimumDate ? minimumDate.toISOString().split("T")[0] : undefined
-            }
-            max={
-              maximumDate ? maximumDate.toISOString().split("T")[0] : undefined
-            }
-            {...props}
-          />
-        </View>
-      </View>
-    );
-  }
-
-  // Mobile implementation using custom modal
+  // Unified implementation using custom modal for all platforms
   return (
     <View style={styles.container}>
       <TouchableOpacity

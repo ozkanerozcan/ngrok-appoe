@@ -132,18 +132,6 @@ export default function TimeLogsScreen() {
       color: theme.colors.textSecondary,
       marginLeft: 4,
     },
-    durationBadge: {
-      backgroundColor: theme.colors.primary + "20",
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-      marginLeft: 8,
-    },
-    durationText: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: theme.colors.primary,
-    },
     statusBadge: {
       paddingHorizontal: 8,
       paddingVertical: 4,
@@ -353,21 +341,14 @@ export default function TimeLogsScreen() {
   const renderTimeLog = ({ item }) => (
     <Card
       id={item.id}
+      subtitle={item.tasks?.title ? `Task: ${item.tasks.title}` : null}
       description={item.description || ""}
       created_at={item.created_at}
       updated_at={item.updated_at}
       duration={item.duration}
       onEdit={() => handleEdit(item)}
       onDelete={() => handleDelete(item)}
-      rightContent={
-        item.duration ? (
-          <View style={styles.durationBadge}>
-            <Text style={styles.durationText}>
-              {formatDuration(item.duration)}
-            </Text>
-          </View>
-        ) : null
-      }
+      rightContent={null}
     />
   );
 

@@ -10,7 +10,19 @@ export const timeLogService = {
 
     const { data, error } = await supabase
       .from("time_logs")
-      .select("*")
+      .select(
+        `
+        *,
+        tasks:task (
+          id,
+          title
+        ),
+        locations:location (
+          id,
+          title
+        )
+      `
+      )
       .eq("created_by", user.id)
       .order("updated_at", { ascending: false });
 
