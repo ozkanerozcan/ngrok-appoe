@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -160,6 +161,11 @@ export default function ManageScreen() {
       fontSize: 14,
       color: theme.colors.textSecondary,
       marginLeft: 4,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
     },
   });
 
@@ -534,7 +540,42 @@ export default function ManageScreen() {
 
   if (loading) {
     return (
-      <LoadingScreen title="Loading data..." icon="grid-outline" size="small" />
+      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Manage</Text>
+          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+            <Ionicons name="add" size={20} color={theme.colors.onPrimary} />
+            <Text style={styles.addButtonText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.tabContainer}>
+          <TouchableOpacity style={[styles.tab, styles.inactiveTab]} disabled>
+            <Text style={[styles.tabText, styles.inactiveTabText]}>
+              Projects
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, styles.inactiveTab]} disabled>
+            <Text style={[styles.tabText, styles.inactiveTabText]}>
+              Locations
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, styles.inactiveTab]} disabled>
+            <Text style={[styles.tabText, styles.inactiveTabText]}>
+              Activities
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, styles.inactiveTab]} disabled>
+            <Text style={[styles.tabText, styles.inactiveTabText]}>
+              Modules
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
     );
   }
 

@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import {
   SafeAreaView,
@@ -419,7 +420,7 @@ export default function TaskDetailsScreen() {
       case "loading":
         return (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading task details...</Text>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
           </View>
         );
       case "notFound":

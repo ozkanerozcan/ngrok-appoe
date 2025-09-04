@@ -8,11 +8,17 @@ import {
   RefreshControl,
   TextInput,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/contexts/ThemeContext";
-import { taskService, projectService } from "../../src/services";
+import {
+  taskService,
+  projectService,
+  moduleService,
+  activityService,
+} from "../../src/services";
 import {
   Card,
   LoadingScreen,
@@ -35,7 +41,12 @@ export default function TasksScreen() {
 
   // Filter states
   const [projects, setProjects] = useState([]);
+  const [modules, setModules] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
+  const [selectedModules, setSelectedModules] = useState([]);
+  const [selectedActivities, setSelectedActivities] = useState([]);
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
   const [selectedUpdatedBy, setSelectedUpdatedBy] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -232,20 +243,30 @@ export default function TasksScreen() {
       zIndex: 100,
       backgroundColor: "transparent",
     },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
   });
 
   const loadData = useCallback(async () => {
     try {
-      const [tasksData, projectsData] = await Promise.all([
-        taskService.getAll(),
-        projectService.getAll(),
-      ]);
+      const [tasksData, projectsData, modulesData, activitiesData] =
+        await Promise.all([
+          taskService.getAll(),
+          projectService.getAll(),
+          moduleService.getAll(),
+          activityService.getAll(),
+        ]);
       setTasks(
         tasksData.sort(
           (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
         )
       );
       setProjects(projectsData);
+      setModules(modulesData);
+      setActivities(activitiesData);
     } catch (error) {
       console.error("Error loading data:", error);
       Toast.show({
@@ -410,19 +431,15 @@ export default function TasksScreen() {
       onPress={() => handleView(item)}
       onEdit={() => handleEdit(item)}
       onDelete={() => handleDelete(item)}
-      rightContent={
-        <View style={getStatusBadgeStyle(item.status)}>
-          <Text style={getStatusTextStyle(item.status)}>
-            {formatStatus(item.status)}
-          </Text>
-        </View>
-      }
     />
   );
 
   const renderEmpty = () => {
     const hasFilters =
       selectedProjects.length > 0 ||
+      selectedModules.length > 0 ||
+      selectedActivities.length > 0 ||
+      selectedStatuses.length > 0 ||
       selectedUpdatedBy.length > 0 ||
       (dateFrom && dateFrom.trim()) ||
       (dateTo && dateTo.trim()) ||
@@ -455,16 +472,26 @@ export default function TasksScreen() {
 
   if (loading) {
     return (
-      <LoadingScreen
-        title="Loading tasks..."
-        icon="clipboard-outline"
-        size="small"
-      />
+      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Tasks</Text>
+          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+            <Ionicons name="add" size={20} color={theme.colors.onPrimary} />
+            <Text style={styles.addButtonText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
     );
   }
 
   const clearFilters = () => {
     setSelectedProjects([]);
+    setSelectedModules([]);
+    setSelectedActivities([]);
+    setSelectedStatuses([]);
     setSelectedUpdatedBy([]);
     setDateFrom(null);
     setDateTo(null);
@@ -487,6 +514,33 @@ export default function TasksScreen() {
       selectedProjects.length > 0 &&
       task.project &&
       !selectedProjects.includes(task.project)
+    ) {
+      return false;
+    }
+
+    // Module filter
+    if (
+      selectedModules.length > 0 &&
+      task.module &&
+      !selectedModules.includes(task.module)
+    ) {
+      return false;
+    }
+
+    // Activity filter
+    if (
+      selectedActivities.length > 0 &&
+      task.activity &&
+      !selectedActivities.includes(task.activity)
+    ) {
+      return false;
+    }
+
+    // Status filter
+    if (
+      selectedStatuses.length > 0 &&
+      task.status &&
+      !selectedStatuses.includes(task.status)
     ) {
       return false;
     }
@@ -606,6 +660,34 @@ export default function TasksScreen() {
               items={projects}
               placeholder="Select projects"
               searchable
+            />
+
+            <MultiSelectPicker
+              value={selectedModules}
+              onValueChange={setSelectedModules}
+              items={modules}
+              placeholder="Select modules"
+              searchable
+            />
+
+            <MultiSelectPicker
+              value={selectedActivities}
+              onValueChange={setSelectedActivities}
+              items={activities}
+              placeholder="Select activities"
+              searchable
+            />
+
+            <MultiSelectPicker
+              value={selectedStatuses}
+              onValueChange={setSelectedStatuses}
+              items={[
+                { id: "pending", title: "Pending" },
+                { id: "in_progress", title: "In Progress" },
+                { id: "done", title: "Done" },
+              ]}
+              placeholder="Select statuses"
+              searchable={false}
             />
 
             <TouchableOpacity

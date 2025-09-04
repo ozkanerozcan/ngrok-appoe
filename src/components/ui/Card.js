@@ -6,6 +6,75 @@ import { useAuth } from "../../contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { formatDurationEnglish } from "../../utils/duration";
 
+// Helper function to format status
+const formatStatus = (status) => {
+  if (!status) return "Unknown";
+  return status.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
+};
+
+// Helper function to get status badge style
+const getStatusBadgeStyle = (status, theme) => {
+  const baseStyle = {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  };
+
+  switch (status) {
+    case "done":
+      return {
+        ...baseStyle,
+        backgroundColor: "#34C75920", // Green background for done
+      };
+    case "in_progress":
+      return {
+        ...baseStyle,
+        backgroundColor: "#FF950020", // Orange background for in progress
+      };
+    case "pending":
+      return {
+        ...baseStyle,
+        backgroundColor: "#FF3B3020", // Red background for pending
+      };
+    default:
+      return {
+        ...baseStyle,
+        backgroundColor: theme.colors.secondary + "20",
+      };
+  }
+};
+
+// Helper function to get status text style
+const getStatusTextStyle = (status, theme) => {
+  const baseStyle = {
+    fontSize: 12,
+    fontWeight: "600",
+  };
+
+  switch (status) {
+    case "done":
+      return {
+        ...baseStyle,
+        color: "#34C759", // Green text for done
+      };
+    case "in_progress":
+      return {
+        ...baseStyle,
+        color: "#FF9500", // Orange text for in progress
+      };
+    case "pending":
+      return {
+        ...baseStyle,
+        color: "#FF3B30", // Red text for pending
+      };
+    default:
+      return {
+        ...baseStyle,
+        color: theme.colors.secondary,
+      };
+  }
+};
+
 export default function Card({
   title,
   subtitle,
@@ -71,6 +140,9 @@ export default function Card({
       flex: 1,
     },
     durationContainer: {
+      flex: 0,
+    },
+    statusContainer: {
       flex: 0,
     },
     updatedAtTopLeft: {
@@ -201,7 +273,7 @@ export default function Card({
         <View style={styles.topRightContainer}>{topRightContent}</View>
       )}
       <View style={styles.header}>
-        {/* Top row: Date left, Duration right */}
+        {/* Top row: Date left, Status/Duration right */}
         <View style={styles.topRow}>
           <View style={styles.dateContainer}>
             {updated_at && (
@@ -214,11 +286,18 @@ export default function Card({
               </Text>
             )}
           </View>
-          <View style={styles.durationContainer}>
+          <View style={styles.statusContainer}>
             {duration && (
               <View style={styles.durationBadge}>
                 <Text style={styles.durationText}>
                   {formatDurationEnglish(duration)}
+                </Text>
+              </View>
+            )}
+            {status && !duration && (
+              <View style={getStatusBadgeStyle(status, theme)}>
+                <Text style={getStatusTextStyle(status, theme)}>
+                  {formatStatus(status)}
                 </Text>
               </View>
             )}

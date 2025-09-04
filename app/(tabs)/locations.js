@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/contexts/ThemeContext";
@@ -93,6 +94,11 @@ export default function LocationsScreen() {
       color: theme.colors.onPrimary,
       fontSize: 16,
       fontWeight: "600",
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
     },
   });
 
@@ -201,11 +207,18 @@ export default function LocationsScreen() {
 
   if (loading) {
     return (
-      <LoadingScreen
-        title="Loading locations..."
-        icon="location-outline"
-        size="small"
-      />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Locations</Text>
+          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+            <Ionicons name="add" size={20} color={theme.colors.onPrimary} />
+            <Text style={styles.addButtonText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </View>
     );
   }
 

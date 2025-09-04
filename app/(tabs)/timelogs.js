@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TextInput,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -16,6 +17,7 @@ import {
   timeLogService,
   projectService,
   locationService,
+  taskService,
 } from "../../src/services";
 import {
   Card,
@@ -41,8 +43,10 @@ export default function TimeLogsScreen() {
   // Filter states
   const [projects, setProjects] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]);
+  const [selectedTasks, setSelectedTasks] = useState([]);
   const [selectedUpdatedBy, setSelectedUpdatedBy] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -239,15 +243,22 @@ export default function TimeLogsScreen() {
       zIndex: 100,
       backgroundColor: "transparent",
     },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
   });
 
   const loadData = useCallback(async () => {
     try {
-      const [timeLogsData, projectsData, locationsData] = await Promise.all([
-        timeLogService.getAll(),
-        projectService.getAll(),
-        locationService.getAll(),
-      ]);
+      const [timeLogsData, projectsData, locationsData, tasksData] =
+        await Promise.all([
+          timeLogService.getAll(),
+          projectService.getAll(),
+          locationService.getAll(),
+          taskService.getAll(),
+        ]);
       setTimeLogs(
         timeLogsData.sort(
           (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
@@ -255,6 +266,7 @@ export default function TimeLogsScreen() {
       );
       setProjects(projectsData);
       setLocations(locationsData);
+      setTasks(tasksData);
     } catch (error) {
       console.error("Error loading data:", error);
       Toast.show({
@@ -356,6 +368,7 @@ export default function TimeLogsScreen() {
     const hasFilters =
       selectedProjects.length > 0 ||
       selectedLocations.length > 0 ||
+      selectedTasks.length > 0 ||
       selectedUpdatedBy.length > 0 ||
       (dateFrom && dateFrom.trim()) ||
       (dateTo && dateTo.trim()) ||
@@ -388,17 +401,25 @@ export default function TimeLogsScreen() {
 
   if (loading) {
     return (
-      <LoadingScreen
-        title="Loading time logs..."
-        icon="time-outline"
-        size="small"
-      />
+      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Time Logs</Text>
+          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+            <Ionicons name="add" size={20} color={theme.colors.onPrimary} />
+            <Text style={styles.addButtonText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
     );
   }
 
   const clearFilters = () => {
     setSelectedProjects([]);
     setSelectedLocations([]);
+    setSelectedTasks([]);
     setSelectedUpdatedBy([]);
     setDateFrom(null);
     setDateTo(null);
@@ -416,11 +437,8 @@ export default function TimeLogsScreen() {
         if (!matchesDescription) return false;
       }
 
-      // Project filter
-      if (
-        selectedProjects.length > 0 &&
-        !selectedProjects.includes(log.project)
-      ) {
+      // Task filter
+      if (selectedTasks.length > 0 && !selectedTasks.includes(log.task)) {
         return false;
       }
 
@@ -534,10 +552,10 @@ export default function TimeLogsScreen() {
             />
 
             <MultiSelectPicker
-              value={selectedProjects}
-              onValueChange={setSelectedProjects}
-              items={projects}
-              placeholder="Select projects"
+              value={selectedTasks}
+              onValueChange={setSelectedTasks}
+              items={tasks}
+              placeholder="Select tasks"
               searchable
             />
 

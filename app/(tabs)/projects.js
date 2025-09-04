@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/contexts/ThemeContext";
@@ -104,6 +105,11 @@ export default function ProjectsScreen() {
       fontSize: 14,
       color: theme.colors.textSecondary,
       marginLeft: 4,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
     },
   });
 
@@ -252,11 +258,18 @@ export default function ProjectsScreen() {
 
   if (loading) {
     return (
-      <LoadingScreen
-        title="Loading projects..."
-        icon="folder-outline"
-        size="small"
-      />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Projects</Text>
+          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+            <Ionicons name="add" size={20} color={theme.colors.onPrimary} />
+            <Text style={styles.addButtonText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </View>
     );
   }
 

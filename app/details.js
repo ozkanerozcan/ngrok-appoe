@@ -7,6 +7,7 @@ import {
   FlatList,
   Modal,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import {
   SafeAreaView,
@@ -198,7 +199,7 @@ export default function DetailsScreen() {
       case "loading":
         return (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading time log details...</Text>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
           </View>
         );
       case "title":
