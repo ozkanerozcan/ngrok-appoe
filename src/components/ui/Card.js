@@ -18,6 +18,11 @@ const getStatusBadgeStyle = (status, theme) => {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    position: "absolute",
+    top: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
   };
 
   switch (status) {
@@ -119,6 +124,7 @@ export default function Card({
       shadowOpacity: 0.1,
       shadowRadius: 3.84,
       elevation: 5,
+      position: "relative",
     },
     pressable: {
       opacity: 0.7,
@@ -155,6 +161,11 @@ export default function Card({
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      position: "absolute",
+      top: 8,
+      right: 8,
     },
     durationText: {
       fontSize: 12,
@@ -269,11 +280,25 @@ export default function Card({
 
   const CardContent = (
     <View style={[styles.card, style]} {...props}>
+      {duration && (
+        <View style={styles.durationBadge}>
+          <Text style={styles.durationText} numberOfLines={1}>
+            {formatDurationEnglish(duration)}
+          </Text>
+        </View>
+      )}
+      {status && !duration && (
+        <View style={getStatusBadgeStyle(status, theme)}>
+          <Text style={getStatusTextStyle(status, theme)} numberOfLines={1}>
+            {formatStatus(status)}
+          </Text>
+        </View>
+      )}
       {topRightContent && (
         <View style={styles.topRightContainer}>{topRightContent}</View>
       )}
       <View style={styles.header}>
-        {/* Top row: Date left, Status/Duration right */}
+        {/* Top row: Date left */}
         <View style={styles.topRow}>
           <View style={styles.dateContainer}>
             {updated_at && (
@@ -284,22 +309,6 @@ export default function Card({
                   year: "numeric",
                 })}
               </Text>
-            )}
-          </View>
-          <View style={styles.statusContainer}>
-            {duration && (
-              <View style={styles.durationBadge}>
-                <Text style={styles.durationText}>
-                  {formatDurationEnglish(duration)}
-                </Text>
-              </View>
-            )}
-            {status && !duration && (
-              <View style={getStatusBadgeStyle(status, theme)}>
-                <Text style={getStatusTextStyle(status, theme)}>
-                  {formatStatus(status)}
-                </Text>
-              </View>
             )}
           </View>
         </View>
